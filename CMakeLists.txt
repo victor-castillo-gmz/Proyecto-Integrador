@@ -54,7 +54,7 @@ set(PROJECT_SOURCES
 
 # Create the test executable.
 # CORRECTED: 'tests/tests.cpp' to reflect its location in the 'tests' subdirectory.
-add_executable(streaming_service_tests
+add_executable(ServicioStreamingTest
     tests/tests.cpp # Your Google Test source file, now with the correct path!
     ${PROJECT_SOURCES} # All your application's source files
 )
@@ -62,7 +62,7 @@ add_executable(streaming_service_tests
 # Link the test executable against the Google Test libraries.
 # GTEST_LIBRARIES and GTEST_MAIN_LIBRARIES are variables set by find_package(GTest).
 # 'pthread' is often required for GTest on Linux systems.
-target_link_libraries(streaming_service_tests
+target_link_libraries(ServicioStreamingTest
     ${GTEST_LIBRARIES}
     ${GTEST_MAIN_LIBRARIES}
     pthread
@@ -75,4 +75,4 @@ enable_testing()
 # Add a test entry for CTest.
 # The NAME is what CTest will call the test.
 # The COMMAND is the executable that CTest will run.
-add_test(NAME StreamingServiceUnitTests COMMAND streaming_service_tests)
+add_test(NAME ServicioStreamingTest COMMAND ServicioStreamingTest)
