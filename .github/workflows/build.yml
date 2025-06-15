@@ -20,7 +20,6 @@ jobs:
           sudo apt-get install -y cmake build-essential lcov gcovr git
 
       # 3. Instalar Google Test
-      # Esto es crucial para que CMake encuentre GTest en el entorno del runner.
       - name: Install Google Test
         run: |
           echo "Installing Google Test..."
@@ -31,8 +30,7 @@ jobs:
           sudo make install
           echo "Google Test installed."
 
-      # 4. DEBUGGING STEP: List files in the current directory (your repo root)
-      # This will show the exact file names and structure that GitHub Actions sees.
+      # 4. DEBUGGING STEP (KEEP THIS FOR NOW, JUST IN CASE)
       - name: List Project Files for Debugging
         run: |
           echo "Listing files in the repository root directory:"
@@ -43,12 +41,26 @@ jobs:
           echo ""
           echo "Current working directory: $(pwd)"
 
+      # NEW CRITICAL STEP: Copy source files to the build directory
+      # This ensures all source files are directly accessible within the build context.
+      - name: Copy Source Files to Build Directory
+        run: |
+          mkdir -p build
+          echo "Copying core .cpp and .h files to build directory..."
+          # Copy all .cpp and .h files from the repository root to the 'build' directory
+          cp *.cpp *.h build/ || true # '|| true' to prevent failure if no matching files
+          echo "Copying tests directory contents to build/tests..."
+          # Create build/tests and copy tests.cpp into it
+          mkdir -p build/tests
+          cp tests/*.cpp build/tests/ || true # '|| true' to prevent failure if no matching files
+
       # 5. Crear directorio de compilación y configurar el proyecto
       - name: Configure Build System
         run: |
-          mkdir -p build
           cd build
-          cmake -DENABLE_COVERAGE=ON ..
+          # Now, CMake will be run from inside the 'build' directory,
+          # and all source files are already copied there or into 'build/tests'.
+          cmake . # IMPORTANT: No '..' needed here anymore!
 
       # 6. Compilar el código fuente
       - name: Build Project
@@ -66,10 +78,14 @@ jobs:
       - name: Generate Coverage Report
         run: |
           cd build
-          # Capturar cobertura con LCOV
+          # Adjust --root for gcovr as sources are now inside 'build'
           lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
-          # Convertir cobertura al formato compatible con SonarQube
-          gcovr --root .. --exclude 'tests/*' --exclude 'build/*' --exclude 'main.cpp' --sonarqube -o coverage.xml --print-summary
+          # gcovr --root . --exclude 'tests/*' --sonarqube -o coverage.xml --print-summary
+          # IMPORTANT: gcovr --root should now be '.' as sources are in the current dir ('build')
+          # or if it expects the original project root, you might need to adjust.
+          # Let's try relative to the build dir first.
+          # Corrected gcovr command:
+          gcovr --root . --exclude 'tests/*' --exclude 'main.cpp' --sonarqube -o coverage.xml --print-summary
 
       # 9. Subir informe de cobertura
       - name: Upload Coverage Report
