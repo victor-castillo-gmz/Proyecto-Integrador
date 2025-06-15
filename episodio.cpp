@@ -1,21 +1,31 @@
-#include "Episodio.h"
-#include <numeric>
+#include "episodio.h"
 
-Episodio::Episodio(const std::string& titulo, int numero)
-    : titulo(titulo), numero(numero) {}
+// Constructor
+Episodio::Episodio(std::string titulo, int temporada)
+    : titulo(titulo), temporada(temporada), calificacionPromedio(0.0) {}
 
-void Episodio::calificar(int calificacion) {
-    if (calificacion >= 0 && calificacion <= 5) {
-        calificaciones.push_back(calificacion);
+// Method to add a rating to the episode
+void Episodio::calificar(int valor) {
+    if (valor >= 1 && valor <= 5) {
+        calificaciones.push_back(valor);
+        calcularPromedio();
+    } else {
+        std::cout << "Calificación de episodio inválida. Debe ser de 1 a 5." << std::endl;
     }
 }
 
-double Episodio::getCalificacionPromedio() const {
-    if (calificaciones.empty()) return 0.0;
-    int suma = std::accumulate(calificaciones.begin(), calificaciones.end(), 0);
-    return static_cast<double>(suma) / calificaciones.size();
+// Calculate and update the average rating
+void Episodio::calcularPromedio() {
+    if (!calificaciones.empty()) {
+        double sum = std::accumulate(calificaciones.begin(), calificaciones.end(), 0.0);
+        calificacionPromedio = sum / calificaciones.size();
+    } else {
+        calificacionPromedio = 0.0;
+    }
 }
 
-const std::string& Episodio::getTitulo() const {
-    return titulo;
+// Display episode details
+void Episodio::mostrarDatos() const {
+    std::cout << "    - Título: " << titulo << ", Temporada: " << temporada
+              << ", Calificación: " << std::fixed << std::setprecision(1) << calificacionPromedio << std::endl;
 }

@@ -1,26 +1,35 @@
 #ifndef SERIE_H
 #define SERIE_H
 
-#include <string>
+#include "video.h"   // Inherits from Video
+#include "episodio.h" // Uses Episodio objects
 #include <vector>
-#include "Episodio.h"
 
-class Serie {
+class Serie : public Video {
 private:
-    std::string id;
-    std::string titulo;
-    double duracion; // duración promedio por episodio
-    std::string genero;
     std::vector<Episodio> episodios;
 
 public:
-    Serie(const std::string& id, const std::string& titulo, double duracion, const std::string& genero);
+    // Constructor
+    Serie(std::string id, std::string nombre, double duracion, std::string genero);
 
-    void agregarEpisodio(const Episodio& episodio);
-    void calificarEpisodio(const std::string& tituloEpisodio, int calificacion);
+    // Add an episode to the series
+    void agregarEpisodio(const Episodio& ep);
 
-    const std::vector<Episodio>& getEpisodios() const;
-    const std::string& getTitulo() const;
+    // Override the virtual mostrarDatos() from Video
+    void mostrarDatos() const override;
+
+    // Display details for all episodes in the series
+    void mostrarEpisodios() const;
+
+    // Display episodes with a minimum rating
+    void mostrarEpisodiosConCalificacion(double calificacionMinima) const;
+
+    // Rate a specific episode by title
+    void calificarEpisodio(const std::string& tituloEpisodio, int valor);
+
+    // Getter for episodes (to allow external modification/access for data loading)
+    std::vector<Episodio>& getEpisodios() { return episodios; }
 };
 
 #endif // SERIE_H
