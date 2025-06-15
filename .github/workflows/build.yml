@@ -1,0 +1,87 @@
+name: Build and Test Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Clonar el repositorio
+      - uses: actions/checkout@v4
+
+      # 2. Instalar dependencias necesarias
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential lcov gcovr
+
+      # 3. Crear directorio de compilación y configurar el proyecto
+      - name: Configure Build System
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DENABLE_COVERAGE=ON ..
+
+      # 4. Compilar el código fuente
+      - name: Build Project
+        run: |
+          cd build
+          cmake --build .
+
+      # 5. Ejecutar pruebas con salida detallada en caso de error
+      - name: Run Unit Tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      # 6. Generar informe de cobertura
+      - name: Generate Coverage Report
+        run: |
+          cd build
+          # Capturar cobertura con LCOV
+          lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
+          # Convertir cobertura al formato compatible con SonarQube
+          gcovr --root .. --exclude 'tests/*' --exclude 'build/*' --exclude 'main.cpp' --sonarqube -o coverage.xml --print-summary
+
+      # 7. Subir informe de cobertura
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/coverage.xml
+
+  build_analysis:
+    name: Build and Analyze
+    runs-on: ubuntu-latest
+    needs: tests  # Dependencia explícita: este job se ejecuta después de 'tests'
+
+    steps:
+      # 1. Clonar el repositorio (con historial necesario para SonarQube)
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Descargar el informe de cobertura generado en el job anterior
+      - name: Download Coverage Report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: build/
+
+      # 3. Ejecutar análisis de código con SonarQube
+      - name: Run SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      # 4. Opcional: Activar Quality Gate para fallar si no se cumplen estándares
+      - name: Check SonarQube Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
