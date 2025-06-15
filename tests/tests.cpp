@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include "Pelicula.h"
-#include "Serie.h"
-#include "Episodio.h"
-#include "ServicioStreaming.h"
+#include "pelicula.h"
+#include "serie.h"
+#include "episodio.h"
+#include "servicioStreaming.h"
 
 // Test básico de Pelicula
 TEST(PeliculaTest, CalificacionPromedioCorrecta) {
