@@ -1,20 +1,25 @@
 #ifndef PELICULA_H
 #define PELICULA_H
 
-#include "video.h" // Inherits from Video
+#include <string>
+#include <vector>
 
-class Pelicula : public Video {
+class Pelicula {
 private:
-    // Removed yearEstreno, director, estudio to align with original problem statement's simplicity
-    // and your provided sample code which also didn't use these specific fields for filtering/display.
-    // If needed, they can be easily re-added here.
+    std::string id;
+    std::string titulo;
+    double duracion;
+    std::string genero;
+    std::vector<int> calificaciones;
 
 public:
-    // Constructor
-    Pelicula(std::string id, std::string nombre, double duracion, std::string genero);
+    Pelicula(const std::string& id, const std::string& titulo, double duracion, const std::string& genero);
 
-    // Override the virtual mostrarDatos() from Video
-    void mostrarDatos() const override;
+    void calificar(int calificacion);
+    double getCalificacionPromedio() const;
+    const std::vector<int>& getCalificaciones() const;
+
+    const std::string& getTitulo() const;
 };
 
 #endif // PELICULA_H

@@ -1,12 +1,25 @@
-#include "pelicula.h"
+#include "Pelicula.h"
+#include <numeric>
 
-// Constructor
-Pelicula::Pelicula(std::string id, std::string nombre, double duracion, std::string genero)
-    : Video(id, nombre, duracion, genero) {} // Call base class constructor
+Pelicula::Pelicula(const std::string& id, const std::string& titulo, double duracion, const std::string& genero)
+    : id(id), titulo(titulo), duracion(duracion), genero(genero) {}
 
-// Override the virtual mostrarDatos() from Video
-void Pelicula::mostrarDatos() const {
-    std::cout << "--- Película ---\n";
-    imprimirInfoBase(); // Use the helper from Video
-    std::cout << "----------------\n";
+void Pelicula::calificar(int calificacion) {
+    if (calificacion >= 0 && calificacion <= 5) {
+        calificaciones.push_back(calificacion);
+    }
+}
+
+double Pelicula::getCalificacionPromedio() const {
+    if (calificaciones.empty()) return 0.0;
+    int suma = std::accumulate(calificaciones.begin(), calificaciones.end(), 0);
+    return static_cast<double>(suma) / calificaciones.size();
+}
+
+const std::vector<int>& Pelicula::getCalificaciones() const {
+    return calificaciones;
+}
+
+const std::string& Pelicula::getTitulo() const {
+    return titulo;
 }

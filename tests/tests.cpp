@@ -1,14 +1,16 @@
 #include <gtest/gtest.h>
-#include "pelicula.h"
-#include "serie.h"
-#include "episodio.h"
-#include "serviciostreaming.h"
+#include "Pelicula.h"
+#include "Serie.h"
+#include "Episodio.h"
+#include "ServicioStreaming.h"
 
 // Test básico de Pelicula
 TEST(PeliculaTest, CalificacionPromedioCorrecta) {
     Pelicula p("P001", "Inception", 120.0, "Ciencia Ficción");
+
     p.calificar(4);
     p.calificar(5);
+
     EXPECT_DOUBLE_EQ(p.getCalificacionPromedio(), 4.5);
 }
 
@@ -23,12 +25,14 @@ TEST(EpisodioTest, CalificacionPromedioCorrecta) {
 // Test de agregar episodios y calificar en serie
 TEST(SerieTest, AgregarYCalificarEpisodios) {
     Serie s("S001", "Breaking Bad", 60.0, "Drama");
+
     Episodio ep1("Piloto", 1);
     ep1.calificar(4);
     s.agregarEpisodio(ep1);
 
     s.calificarEpisodio("Piloto", 5);
     const auto& episodios = s.getEpisodios();
+
     ASSERT_EQ(episodios.size(), 1);
     EXPECT_DOUBLE_EQ(episodios[0].getCalificacionPromedio(), 4.5);
 }
@@ -36,18 +40,19 @@ TEST(SerieTest, AgregarYCalificarEpisodios) {
 // Test de ServicioStreaming calificar video (película)
 TEST(ServicioStreamingTest, CalificarPelicula) {
     ServicioStreaming servicio;
-    auto* p = new Pelicula("P002", "Matrix", 130.0, "Acción");
-    servicio.calificarVideo("Matrix", 4); // No debe hacer nada (aún no está cargado)
 
-    // Simular carga manual
-    servicio.calificarVideo("Matrix", 4); // Aún no sirve
+    Pelicula p("P002", "Matrix", 130.0, "Acción");
 
-    delete p; // limpiar
+    servicio.agregarPelicula(p);
+    servicio.calificarVideo("Matrix", 4);
+
+    EXPECT_DOUBLE_EQ(servicio.obtenerCalificacion("Matrix"), 4.0);
 }
 
-// Test de validación de calificación inválida
+// Test de validacion de calificacion invalida
 TEST(VideoTest, CalificacionInvalida) {
     Pelicula p("P003", "Test", 90.0, "Drama");
-    p.calificar(6); // no válida
+
+    p.calificar(6);
     EXPECT_EQ(p.getCalificaciones().size(), 0);
 }
