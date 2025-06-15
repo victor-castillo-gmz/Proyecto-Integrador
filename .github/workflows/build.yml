@@ -30,7 +30,7 @@ jobs:
           sudo make install
           echo "Google Test installed."
 
-      # 4. DEBUGGING STEP (KEEP THIS FOR NOW, JUST IN CASE)
+      # 4. DEBUGGING STEP (KEEP FOR NOW, HELPFUL FOR DIAGNOSIS)
       - name: List Project Files for Debugging
         run: |
           echo "Listing files in the repository root directory:"
@@ -41,26 +41,18 @@ jobs:
           echo ""
           echo "Current working directory: $(pwd)"
 
-      # NEW CRITICAL STEP: Copy source files to the build directory
-      # This ensures all source files are directly accessible within the build context.
-      - name: Copy Source Files to Build Directory
-        run: |
-          mkdir -p build
-          echo "Copying core .cpp and .h files to build directory..."
-          # Copy all .cpp and .h files from the repository root to the 'build' directory
-          cp *.cpp *.h build/ || true # '|| true' to prevent failure if no matching files
-          echo "Copying tests directory contents to build/tests..."
-          # Create build/tests and copy tests.cpp into it
-          mkdir -p build/tests
-          cp tests/*.cpp build/tests/ || true # '|| true' to prevent failure if no matching files
+      # REMOVED the "Copy Source Files to Build Directory" step:
+      # This workaround is causing more issues with paths than it solves.
+      # We're going back to CMake resolving paths relative to the root.
 
       # 5. Crear directorio de compilación y configurar el proyecto
       - name: Configure Build System
         run: |
+          mkdir -p build
           cd build
-          # Now, CMake will be run from inside the 'build' directory,
-          # and all source files are already copied there or into 'build/tests'.
-          cmake . # IMPORTANT: No '..' needed here anymore!
+          # IMPORTANT: Reverted to cmake ..
+          # CMakeLists.txt is in the parent directory (repository root)
+          cmake -DENABLE_COVERAGE=ON ..
 
       # 6. Compilar el código fuente
       - name: Build Project
@@ -78,14 +70,9 @@ jobs:
       - name: Generate Coverage Report
         run: |
           cd build
-          # Adjust --root for gcovr as sources are now inside 'build'
+          # --root should point to the original source root (parent of 'build')
           lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
-          # gcovr --root . --exclude 'tests/*' --sonarqube -o coverage.xml --print-summary
-          # IMPORTANT: gcovr --root should now be '.' as sources are in the current dir ('build')
-          # or if it expects the original project root, you might need to adjust.
-          # Let's try relative to the build dir first.
-          # Corrected gcovr command:
-          gcovr --root . --exclude 'tests/*' --exclude 'main.cpp' --sonarqube -o coverage.xml --print-summary
+          gcovr --root .. --exclude 'tests/*' --exclude 'build/*' --exclude 'main.cpp' --sonarqube -o coverage.xml --print-summary
 
       # 9. Subir informe de cobertura
       - name: Upload Coverage Report
@@ -113,7 +100,6 @@ jobs:
           path: build/
 
       # 3. Instalar Google Test para SonarQube
-      # SonarQube a menudo re-compila el proyecto para el análisis, por lo que GTest debe estar disponible.
       - name: Install Google Test for SonarQube
         run: |
           echo "Installing Google Test for SonarQube analysis..."
@@ -130,13 +116,13 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        
-          # Para C/C++, SonarQube a menudo requiere un 'build-wrapper' o configuración específica
-          # en tu `sonar-project.properties`. Si estás usando un `build-wrapper`,
-          # asegúrate de que esté configurado para generar la información necesaria.
-          # Ejemplos de argumentos que podrías necesitar:
+          # If SonarQube's analysis requires a fresh build, you might need to
+          # include build steps here similar to the 'tests' job, but tailored for SonarQube's
+          # build-wrapper if you're using it.
+          # For example:
           # args: >
           #   -Dsonar.cfamily.build-wrapper-output=build_wrapper_output_directory
+          #   -Dsonar.cfamily.compiler-id=clang
           #   -Dsonar.cfamily.gtest.enabled=true
           #   -Dsonar.inclusions=**/*.h,**/*.cpp
           #   -Dsonar.cfamily.compiler.charset=UTF-8

@@ -22,24 +22,23 @@ endif()
 find_package(GTest REQUIRED)
 
 # Include directories where your compiler should look for header files.
-# NOW: Headers are relative to the 'build' directory where CMake is run.
+# CMAKE_SOURCE_DIR correctly points to the repository root.
 include_directories(
-    .               # For your core project headers (e.g., Video.h) which are now in the 'build' directory
-    tests           # For any headers within your 'tests' directory (now 'build/tests/')
-    ${GTEST_INCLUDE_DIR} # For Google Test headers
+    ${CMAKE_SOURCE_DIR}       # For your core project headers (e.g., Video.h, Episodio.h)
+    ${CMAKE_SOURCE_DIR}/tests # For any headers specifically within your 'tests' directory
+    ${GTEST_INCLUDE_DIR}      # For Google Test headers
 )
 
 # Create the test executable.
-# Paths are now relative to the 'build' directory itself.
+# Paths are now relative to the repository root (where CMakeLists.txt resides).
 add_executable(ServicioStreamingTest
-    tests/tests.cpp       # Your Google Test source file, now relative to 'build/tests/'
-    Video.cpp             # Core project source, now relative to 'build/'
+    tests/tests.cpp       # Your Google Test source file, confirmed to be in 'tests/'
+    Video.cpp             # Core project source, confirmed to be in root
     Episodio.cpp          # Core project source
     Pelicula.cpp          # Core project source
     Serie.cpp             # Core project source
     ServicioStreaming.cpp # Core project source
-    # main.cpp is typically NOT included in the unit test executable,
-    # as the Google Test framework provides its own main function.
+    # main.cpp is typically NOT included in the unit test executable.
 )
 
 # Link the test executable against the Google Test libraries.
