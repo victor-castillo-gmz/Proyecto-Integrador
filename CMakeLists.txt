@@ -23,6 +23,7 @@ include_directories(
 
 # Libreria principal
 add_library(StreamingLibrary
+    Video.cpp
     Pelicula.cpp
     Serie.cpp
     Episodio.cpp
