@@ -24,27 +24,24 @@ find_package(GTest REQUIRED)
 # Include directories where your compiler should look for header files.
 # CMAKE_SOURCE_DIR correctly points to the repository root.
 include_directories(
-    ${CMAKE_SOURCE_DIR}       # For your core project headers (e.g., Video.h, Episodio.h)
-    ${CMAKE_SOURCE_DIR}/tests # For any headers specifically within your 'tests' directory
+    ${CMAKE_SOURCE_DIR}       # For your core project headers (e.g., video.h, episodio.h)
     ${GTEST_INCLUDE_DIR}      # For Google Test headers
 )
 
 # Create the test executable.
-# Paths are now relative to the repository root (where CMakeLists.txt resides).
+# NOTE: Removed 'ServicioStreaming.cpp' as it does not exist in the file list.
 add_executable(ServicioStreamingTest
-    tests/tests.cpp       # Your Google Test source file, confirmed to be in 'tests/'
-    Video.cpp             # Core project source, confirmed to be in root
-    Episodio.cpp          # Core project source
-    Pelicula.cpp          # Core project source
-    Serie.cpp             # Core project source
-    ServicioStreaming.cpp # Core project source
-    # main.cpp is typically NOT included in the unit test executable.
+    tests/tests.cpp
+    video.cpp
+    episodio.cpp
+    pelicula.cpp
+    serie.cpp
+    # main.cpp is NOT included in the unit test executable.
 )
 
 # Link the test executable against the Google Test libraries.
 target_link_libraries(ServicioStreamingTest
-    ${GTEST_LIBRARIES}
-    ${GTEST_MAIN_LIBRARIES}
+    GTest::gtest_main # Modern way to link GTest
     pthread
 )
 
