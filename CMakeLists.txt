@@ -29,30 +29,33 @@ find_package(GTest REQUIRED)
 # Include directories where your compiler should look for header files.
 # CMAKE_SOURCE_DIR points to the root of your project where your .h files are.
 # GTEST_INCLUDE_DIR is found by find_package(GTest).
+# Also include the 'tests' directory for tests.cpp to find its headers (like gtest/gtest.h)
 include_directories(
-    ${CMAKE_SOURCE_DIR}
-    ${GTEST_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}       # For your core project headers (Video.h, Episodio.h, etc.)
+    ${CMAKE_SOURCE_DIR}/tests # For any headers within your 'tests' directory if applicable
+    ${GTEST_INCLUDE_DIR}      # For Google Test headers
 )
 
 # Define all your application's source files.
 # These are the .cpp files that make up your core classes.
+# main.cpp is typically excluded from the unit test build if it contains
+# the application's primary 'int main()'. The GTest library (gtest_main)
+# provides its own main function for the test executable.
 set(PROJECT_SOURCES
     Video.cpp
     Episodio.cpp
     Pelicula.cpp
     Serie.cpp
     ServicioStreaming.cpp
-    main.cpp # If main.cpp is part of your main application build, include it here.
-             # If main.cpp is ONLY for running the application and not part of unit tests,
-             # you might separate it, but for a simple project with GTest, including it
-             # in the test executable is often simplest.
+    # REMOVED main.cpp: Generally, your test executable uses GTest's main.
+    # If main.cpp defines functions you want to test and doesn't have its own main(),
+    # you can re-add it. But be careful of multiple definition errors.
 )
 
 # Create the test executable.
-# This executable will compile all your project sources AND your tests.cpp.
-# The name of your GTest file is 'tests.cpp' as per your file structure.
+# CORRECTED: 'tests/tests.cpp' to reflect its location in the 'tests' subdirectory.
 add_executable(streaming_service_tests
-    tests.cpp # Your Google Test source file
+    tests/tests.cpp # Your Google Test source file, now with the correct path!
     ${PROJECT_SOURCES} # All your application's source files
 )
 
@@ -73,6 +76,3 @@ enable_testing()
 # The NAME is what CTest will call the test.
 # The COMMAND is the executable that CTest will run.
 add_test(NAME StreamingServiceUnitTests COMMAND streaming_service_tests)
-
-# Optional: Set properties for the test if you want to categorize or add labels.
-# set_tests_properties(StreamingServiceUnitTests PROPERTIES LABELS "Unit")
