@@ -31,32 +31,24 @@ find_package(GTest REQUIRED)
 # GTEST_INCLUDE_DIR is found by find_package(GTest).
 # Also include the 'tests' directory for tests.cpp to find its headers (like gtest/gtest.h)
 include_directories(
-    ${CMAKE_SOURCE_DIR}       # For your core project headers (Video.h, Episodio.h, etc.)
-    ${CMAKE_SOURCE_DIR}/tests # For any headers within your 'tests' directory if applicable
+    ${CMAKE_SOURCE_DIR}       # For your core project headers (Pelicula.h, Serie.h, etc.)
+    ${CMAKE_SOURCE_DIR}/tests # For any headers within your 'tests' directory if tests.cpp needs them
     ${GTEST_INCLUDE_DIR}      # For Google Test headers
 )
 
-# Define all your application's source files.
-# These are the .cpp files that make up your core classes.
-# main.cpp is typically excluded from the unit test build if it contains
-# the application's primary 'int main()'. The GTest library (gtest_main)
-# provides its own main function for the test executable.
-set(PROJECT_SOURCES
-    Video.cpp
-    Episodio.cpp
-    Pelicula.cpp
-    Serie.cpp
-    ServicioStreaming.cpp
-    # REMOVED main.cpp: Generally, your test executable uses GTest's main.
-    # If main.cpp defines functions you want to test and doesn't have its own main(),
-    # you can re-add it. But be careful of multiple definition errors.
-)
-
 # Create the test executable.
-# CORRECTED: 'tests/tests.cpp' to reflect its location in the 'tests' subdirectory.
+# All source files are now explicitly listed here. This rules out any issues
+# with the 'PROJECT_SOURCES' variable or its expansion.
 add_executable(ServicioStreamingTest
-    tests/tests.cpp # Your Google Test source file, now with the correct path!
-    ${PROJECT_SOURCES} # All your application's source files
+    tests/tests.cpp       # Your Google Test source file
+    Video.cpp             # Core project source
+    Episodio.cpp          # Core project source
+    Pelicula.cpp          # Core project source
+    Serie.cpp             # Core project source
+    ServicioStreaming.cpp # Core project source
+    # main.cpp is typically NOT included in the unit test executable,
+    # as the Google Test framework provides its own main function.
+    # Including it here would likely lead to 'multiple definition of main' errors.
 )
 
 # Link the test executable against the Google Test libraries.
