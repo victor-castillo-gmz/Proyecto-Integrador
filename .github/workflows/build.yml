@@ -4,33 +4,26 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
     steps:
-      # 1. Clonar el repositorio
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4 # 1. Clone the repository
 
-      # 2. Instalar dependencias necesarias
+      # 2. Install necessary dependencies
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential lcov gcovr git
+          sudo apt-get install -y cmake build-essential lcov gcovr git # lcov and gcovr for coverage
 
-      # 3. Instalar Google Test
-      - name: Install Google Test
-        run: |
-          echo "Installing Google Test..."
-          git clone --depth 1 https://github.com/google/googletest.git /tmp/googletest
-          mkdir -p /tmp/googletest/build
-          cd /tmp/googletest/build
-          cmake .. -DBUILD_GMOCK=OFF -DBUILD_GTEST=ON -DCMAKE_INSTALL_PREFIX=/usr/local
-          sudo make install
-          echo "Google Test installed."
+      # (No longer need to manually install Google Test thanks to FetchContent in CMake)
 
-      # 4. DEBUGGING STEP (KEEP FOR NOW, HELPFUL FOR DIAGNOSIS)
+      # 3. DEBUGGING STEP (Keep for diagnosis if needed)
       - name: List Project Files for Debugging
         run: |
           echo "Listing files in the repository root directory:"
@@ -41,93 +34,72 @@ jobs:
           echo ""
           echo "Current working directory: $(pwd)"
 
-      # REMOVED the "Copy Source Files to Build Directory" step:
-      # This workaround is causing more issues with paths than it solves.
-      # We're going back to CMake resolving paths relative to the root.
-
-      # 5. Crear directorio de compilación y configurar el proyecto
+      # 4. Create build directory and configure the project
       - name: Configure Build System
         run: |
           mkdir -p build
           cd build
-          # IMPORTANT: Reverted to cmake ..
-          # CMakeLists.txt is in the parent directory (repository root)
-          cmake -DENABLE_COVERAGE=ON ..
+          # Pass ENABLE_COVERAGE and ENABLE_TESTING flags to CMake
+          cmake -DENABLE_COVERAGE=ON -DENABLE_TESTING=ON ..
 
-      # 6. Compilar el código fuente
+      # 5. Build the project (including test executable)
       - name: Build Project
         run: |
           cd build
-          cmake --build .
+          cmake --build . # This builds all targets, including StreamingServiceApp and ServicioStreamingTest
 
-      # 7. Ejecutar pruebas con salida detallada en caso de error
+      # 6. Run Unit Tests with detailed output on failure
       - name: Run Unit Tests
         run: |
           cd build
           ctest --output-on-failure
 
-      # 8. Generar informe de cobertura
-      - name: Generate Coverage Report
+      # 7. Generate Coverage Report (SonarQube XML format)
+      - name: Generate SonarQube Coverage Report
         run: |
           cd build
-          # --root should point to the original source root (parent of 'build')
-          lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
-          gcovr --root .. --exclude 'tests/*' --exclude 'build/*' --exclude 'main.cpp' --sonarqube -o coverage.xml --print-summary
+          # This command triggers the 'sonarqube_coverage_xml' custom target defined in CMakeLists.txt
+          # It runs tests and then uses gcovr to create coverage.xml
+          cmake --build . --target sonarqube_coverage_xml
 
-      # 9. Subir informe de cobertura
+      # 8. Upload Coverage Report as an artifact
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: build/coverage.xml
+          path: build/coverage.xml # This is the XML report for SonarQube
 
   build_analysis:
     name: Build and Analyze
     runs-on: ubuntu-latest
-    needs: tests # Este job se ejecuta después de 'tests'
+    needs: tests # This job runs after 'tests' completes successfully
 
     steps:
-      # 1. Clonar el repositorio (con historial necesario para SonarQube)
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Fetch full history for SonarQube analysis
 
-      # 2. Descargar el informe de cobertura generado en el job anterior
+      # 2. Download the coverage report generated in the previous job
       - name: Download Coverage Report
         uses: actions/download-artifact@v4
         with:
           name: coverage-report
-          path: build/
+          path: build/ # Downloads coverage.xml into the build directory
 
-      # 3. Instalar Google Test para SonarQube
-      - name: Install Google Test for SonarQube
-        run: |
-          echo "Installing Google Test for SonarQube analysis..."
-          git clone --depth 1 https://github.com/google/googletest.git /tmp/googletest-sonar
-          mkdir -p /tmp/googletest-sonar/build
-          cd /tmp/googletest-sonar/build
-          cmake .. -DBUILD_GMOCK=OFF -DBUILD_GTEST=ON -DCMAKE_INSTALL_PREFIX=/usr/local
-          sudo make install
-          echo "Google Test installed for SonarQube."
+      # (No longer need to install Google Test specifically for SonarQube)
 
-      # 4. Ejecutar análisis de código con SonarQube
+      # 3. Run SonarQube Scan
       - name: Run SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v3
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          # If SonarQube's analysis requires a fresh build, you might need to
-          # include build steps here similar to the 'tests' job, but tailored for SonarQube's
-          # build-wrapper if you're using it.
-          # For example:
-          # args: >
-          #   -Dsonar.cfamily.build-wrapper-output=build_wrapper_output_directory
-          #   -Dsonar.cfamily.compiler-id=clang
-          #   -Dsonar.cfamily.gtest.enabled=true
-          #   -Dsonar.inclusions=**/*.h,**/*.cpp
-          #   -Dsonar.cfamily.compiler.charset=UTF-8
+        with:
+          args: >
+            -Dsonar.cfamily.compile-commands=build/compile_commands.json
+            -Dsonar.cfamily.reportPaths=build/coverage.xml # Point to the downloaded coverage XML report
 
-      # 5. Opcional: Activar Quality Gate para fallar si no se cumplen estándares
+      # 4. Optional: Check Quality Gate to fail the build if standards are not met
       - name: Check SonarQube Quality Gate
         uses: sonarsource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
