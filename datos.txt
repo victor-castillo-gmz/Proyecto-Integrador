@@ -1,0 +1,6 @@
+Pelicula,P001,Interstellar,169,Ciencia Ficción,5;4;5;5
+Pelicula,P002,La La Land,128,Musical,4;3;4
+Serie,S001,Breaking Bad,60,Drama,5-4-5;Pilot:1:5-5|Cat's in the Bag...:1:4-5|...and the Bag's in the River:1:4
+Serie,S002,The Office,22,Comedia,4-4-3;Pilot:1:4|Diversity Day:1:3
+Pelicula,P003,Pulp Fiction,154,Crimen,5;5;4
+Serie,S003,Stranger Things,50,Misterio,5-5;Chapter One:1:5|Chapter Two:1:4
