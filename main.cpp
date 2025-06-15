@@ -15,7 +15,7 @@ std::string getStringInput(const std::string& prompt) {
     std::getline(std::cin, input);
     return input;
 }
-
+//
 // Helper function for validated double input (for ratings)
 double getDoubleInput(const std::string& prompt) {
     double value;
