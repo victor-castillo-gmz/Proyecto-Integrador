@@ -2,7 +2,7 @@
 #include "pelicula.h"
 #include "serie.h"
 #include "episodio.h"
-#include "servicioStreaming.h"
+#include "serviciostreaming.h"
 
 // Test básico de Pelicula
 TEST(PeliculaTest, CalificacionPromedioCorrecta) {
