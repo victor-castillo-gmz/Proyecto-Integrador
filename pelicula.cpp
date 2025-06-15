@@ -1,4 +1,4 @@
-#include "Pelicula.h"
+#include "pelicula.h"
 
 // Constructor
 Pelicula::Pelicula(std::string id, std::string nombre, double duracion, std::string genero)

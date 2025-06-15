@@ -1,7 +1,7 @@
 #ifndef PELICULA_H
 #define PELICULA_H
 
-#include "Video.h" // Inherits from Video
+#include "video.h" // Inherits from Video
 
 class Pelicula : public Video {
 private:

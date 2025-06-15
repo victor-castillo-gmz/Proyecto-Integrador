@@ -1,4 +1,4 @@
-#include "Episodio.h"
+#include "episodio.h"
 
 // Constructor
 Episodio::Episodio(std::string titulo, int temporada)

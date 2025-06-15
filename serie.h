@@ -1,8 +1,8 @@
 #ifndef SERIE_H
 #define SERIE_H
 
-#include "Video.h"   // Inherits from Video
-#include "Episodio.h" // Uses Episodio objects
+#include "video.h"   // Inherits from Video
+#include "episodio.h" // Uses Episodio objects
 #include <vector>
 
 class Serie : public Video {

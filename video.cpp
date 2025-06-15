@@ -1,4 +1,4 @@
-#include "Video.h"
+#include "video.h"
 
 // Constructor implementation
 Video::Video(std::string id, std::string nombre, double duracion, std::string genero)

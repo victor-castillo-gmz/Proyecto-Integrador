@@ -1,7 +1,7 @@
 #include <iostream>
 #include <limits> // For numeric_limits
 #include <string>
-#include "ServicioStreaming.h" // Include the streaming service header
+#include "servicioStreaming.h" // Include the streaming service header
 
 // Helper function to clear input buffer
 void clearInputBuffer() {

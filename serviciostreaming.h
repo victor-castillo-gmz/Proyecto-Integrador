@@ -1,10 +1,10 @@
 #ifndef SERVICIOSTREAMING_H
 #define SERVICIOSTREAMING_H
 
-#include "Video.h"
-#include "Pelicula.h"
-#include "Serie.h"
-#include "Episodio.h" // Ensure Episode is known
+#include "video.h"
+#include "pelicula.h"
+#include "serie.h"
+#include "episodio.h" // Ensure Episode is known
 #include <vector>
 #include <string>
 #include <fstream>
