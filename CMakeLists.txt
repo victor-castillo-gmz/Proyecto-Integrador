@@ -23,11 +23,11 @@ include_directories(
 
 add_executable(ServicioStreamingTest
     tests/tests.cpp
-    Video.cpp
-    Episodio.cpp
-    Pelicula.cpp
-    Serie.cpp
-    ServicioStreaming.cpp
+    video.cpp
+    episodio.cpp
+    pelicula.cpp
+    serie.cpp
+    serviciostreaming.cpp
     main.cpp
 )
 
