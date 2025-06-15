@@ -1,9 +1,10 @@
-name: Build and Test Workflow
+name: Build
 
 on:
   push:
     branches:
       - main
+
 
 jobs:
   tests:
@@ -78,10 +79,18 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
+      
+      
       # 4. Opcional: Activar Quality Gate para fallar si no se cumplen estándares
       - name: Check SonarQube Quality Gate
         uses: sonarsource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          
+          # If you wish to fail your job when the Quality Gate is red, uncomment the
+      # following lines. This would typically be used to fail a deployment.
+      # - uses: sonarsource/sonarqube-quality-gate-action@master
+      #   timeout-minutes: 5
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
