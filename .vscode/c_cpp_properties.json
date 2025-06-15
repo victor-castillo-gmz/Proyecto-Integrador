@@ -3,7 +3,10 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "C:/Users/victo/Documents/GitHub/newsonq/pruebas_unit/vcpkg"
+
+                
             ],
             "defines": [
                 "_DEBUG",
