@@ -103,7 +103,7 @@ jobs:
         env: # <--- ¡Aquí es donde estaban los problemas de sintaxis! Corregido.
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        with:
+        
           # Para C/C++, SonarQube a menudo requiere un 'build-wrapper' o configuración específica
           # en tu `sonar-project.properties`. Si estás usando un `build-wrapper`,
           # asegúrate de que esté configurado para generar la información necesaria.
