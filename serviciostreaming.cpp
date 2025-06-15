@@ -1,12 +1,14 @@
 #include "serviciostreaming.h"
-#include <iostream> // For std::cout, std::cerr
-#include <limits> // For std::numeric_limits
-#include <algorithm> // For std::transform, std::tolower
+#include <iostream>    // For std::cout, std::cerr
+#include <limits>      // For std::numeric_limits
+#include <algorithm>   // For std::transform
+#include <cctype>      // For ::tolower
+#include <stdexcept>   // For std::invalid_argument in stoi
 
 // Helper to convert string to lowercase for case-insensitive comparisons
 std::string toLower(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c){ return std::tolower(c); });
+                   [](unsigned char c){ return static_cast<unsigned char>(std::tolower(c)); });
     return s;
 }
 
@@ -26,18 +28,7 @@ Video* ServicioStreaming::buscarVideoPorTitulo(const std::string& titulo) const 
             return video;
         }
     }
-    // Also check episodes within series for rating
-    for (Video* video : videos) {
-        Serie* serie = dynamic_cast<Serie*>(video);
-        if (serie) {
-            for (Episodio& ep : serie->getEpisodios()) {
-                if (toLower(ep.getTitulo()) == searchTitleLower) {
-                    // Return the series if an episode matches, as rating an episode requires access to the series
-                    return serie;
-                }
-            }
-        }
-    }
+    // Only search for top-level videos (Movies or Series), not individual episodes here.
     return nullptr;
 }
 
@@ -59,49 +50,105 @@ void ServicioStreaming::cargarArchivo(const std::string& nombreArchivo) {
     std::string linea;
     while (std::getline(archivo, linea)) {
         std::stringstream ss(linea);
-        std::string tipo, id, nombre, genero;
+        std::string tipo, id, nombre, genero, initialRatingsStr;
         double duracion;
-        int temporadas;
 
+        // General Video data parsing (Type, ID, Name, Duration, Genre)
         std::getline(ss, tipo, ',');
         std::getline(ss, id, ',');
         std::getline(ss, nombre, ',');
-        ss >> duracion; ss.ignore(std::numeric_limits<std::streamsize>::max(), ',');
+        
+        // Read duration. If it fails, print a warning and skip the line.
+        if (!(ss >> duracion)) {
+            std::cerr << "Advertencia: Duración inválida en la línea: " << linea << std::endl;
+            continue;
+        }
+        ss.ignore(std::numeric_limits<std::streamsize>::max(), ','); // Consume comma after duration
+        
         std::getline(ss, genero, ',');
-
-        // Trim whitespace from strings
-        tipo.erase(0, tipo.find_first_not_of(" \t\n\r\f\v"));
-        tipo.erase(tipo.find_last_not_of(" \t\n\r\f\v") + 1);
-        id.erase(0, id.find_first_not_of(" \t\n\r\f\v"));
-        id.erase(id.find_last_not_of(" \t\n\r\f\v") + 1);
-        nombre.erase(0, nombre.find_first_not_of(" \t\n\r\f\v"));
-        nombre.erase(nombre.find_last_not_of(" \t\n\r\f\v") + 1);
-        genero.erase(0, genero.find_first_not_of(" \t\n\r\f\v"));
-        genero.erase(genero.find_last_not_of(" \t\n\r\f\v") + 1);
-
+        
+        // Trim leading/trailing whitespace from essential string fields
+        tipo.erase(0, tipo.find_first_not_of(" \t\n\r\f\v")); tipo.erase(tipo.find_last_not_of(" \t\n\r\f\v") + 1);
+        id.erase(0, id.find_first_not_of(" \t\n\r\f\v")); id.erase(id.find_last_not_of(" \t\n\r\f\v") + 1);
+        nombre.erase(0, nombre.find_first_not_of(" \t\n\r\f\v")); nombre.erase(nombre.find_last_not_of(" \t\n\r\f\v") + 1);
+        genero.erase(0, genero.find_first_not_of(" \t\n\r\f\v")); genero.erase(genero.find_last_not_of(" \t\n\r\f\v") + 1);
 
         if (tipo == "Pelicula") {
-            videos.push_back(new Pelicula(id, nombre, duracion, genero));
-            // Add any initial ratings if format includes them
+            // For Pelicula, the next part is initial ratings separated by ';'
+            // It's followed by a newline, so no specific delimiter needed for the end of the line.
+            std::getline(ss, initialRatingsStr);
+            initialRatingsStr.erase(0, initialRatingsStr.find_first_not_of(" \t\n\r\f\v")); initialRatingsStr.erase(initialRatingsStr.find_last_not_of(" \t\n\r\f\v") + 1);
+
+            Pelicula* nuevaPelicula = new Pelicula(id, nombre, duracion, genero);
+            std::stringstream ssRatings(initialRatingsStr);
+            std::string ratingValStr;
+            while (std::getline(ssRatings, ratingValStr, ';')) {
+                try {
+                    int rating = std::stoi(ratingValStr);
+                    nuevaPelicula->calificar(rating);
+                } catch (const std::invalid_argument& e) {
+                    std::cerr << "Advertencia: Calificación inválida para Pelicula '" << nombre << "': '" << ratingValStr << "'" << std::endl;
+                }
+            }
+            videos.push_back(nuevaPelicula);
+
         } else if (tipo == "Serie") {
-            ss >> temporadas; // Read number of seasons for a series
-            ss.ignore(std::numeric_limits<std::streamsize>::max(), ','); // Consume the comma after temporadas
+            // For Serie, the next part is initial series ratings (e.g., 5-4-5) followed by ';', then episode data
+            std::getline(ss, initialRatingsStr, ';');
+            initialRatingsStr.erase(0, initialRatingsStr.find_first_not_of(" \t\n\r\f\v")); initialRatingsStr.erase(initialRatingsStr.find_last_not_of(" \t\n\r\f\v") + 1);
 
             Serie* nuevaSerie = new Serie(id, nombre, duracion, genero);
 
-            std::string episodioData;
-            if (std::getline(ss, episodioData)) { // Read the rest of the line for episode data
-                std::stringstream ssEpisodios(episodioData);
-                std::string epTitulo;
-                int epTemporada;
-                // Episodes are expected in the format "TituloEpisodio1:Temporada1;TituloEpisodio2:Temporada2;..."
-                std::string segment;
-                while (std::getline(ssEpisodios, segment, ';')) {
-                    size_t colonPos = segment.find(':');
-                    if (colonPos != std::string::npos) {
-                        epTitulo = segment.substr(0, colonPos);
-                        epTemporada = std::stoi(segment.substr(colonPos + 1));
-                        nuevaSerie->agregarEpisodio(Episodio(epTitulo, epTemporada));
+            // Apply initial series ratings
+            std::stringstream ssSeriesRatings(initialRatingsStr);
+            std::string seriesRatingValStr;
+            while (std::getline(ssSeriesRatings, seriesRatingValStr, '-')) {
+                try {
+                    int rating = std::stoi(seriesRatingValStr);
+                    nuevaSerie->calificar(rating);
+                } catch (const std::invalid_argument& e) {
+                    std::cerr << "Advertencia: Calificación inválida para Serie '" << nombre << "': '" << seriesRatingValStr << "'" << std::endl;
+                }
+            }
+
+            // Read the rest of the line which contains episode data (separated by '|')
+            std::string episodeDataStr;
+            if (std::getline(ss, episodeDataStr)) {
+                std::stringstream ssEpisodes(episodeDataStr);
+                std::string episodeSegment;
+                while (std::getline(ssEpisodes, episodeSegment, '|')) {
+                    size_t firstColon = episodeSegment.find(':');
+                    size_t secondColon = episodeSegment.find(':', firstColon + 1);
+
+                    if (firstColon != std::string::npos && secondColon != std::string::npos) {
+                        std::string epTitulo = episodeSegment.substr(0, firstColon);
+                        epTitulo.erase(0, epTitulo.find_first_not_of(" \t\n\r\f\v")); epTitulo.erase(epTitulo.find_last_not_of(" \t\n\r\f\v") + 1); // Trim episode title
+
+                        int epTemporada = 0;
+                        try {
+                            epTemporada = std::stoi(episodeSegment.substr(firstColon + 1, secondColon - (firstColon + 1)));
+                        } catch (const std::invalid_argument& e) {
+                            std::cerr << "Advertencia: Temporada inválida para episodio '" << epTitulo << "' en '" << nombre << "': '" << episodeSegment.substr(firstColon + 1, secondColon - (firstColon + 1)) << "'" << std::endl;
+                            continue; // Skip this episode if season is invalid
+                        }
+
+                        Episodio newEp(epTitulo, epTemporada);
+
+                        // Parse episode ratings (e.g., 5-5)
+                        std::string epRatingsStr = episodeSegment.substr(secondColon + 1);
+                        std::stringstream ssEpRatings(epRatingsStr);
+                        std::string epRatingValStr;
+                        while (std::getline(ssEpRatings, epRatingValStr, '-')) {
+                            try {
+                                int rating = std::stoi(epRatingValStr);
+                                newEp.calificar(rating);
+                            } catch (const std::invalid_argument& e) {
+                                std::cerr << "Advertencia: Calificación inválida para episodio '" << epTitulo << "' en '" << nombre << "': '" << epRatingValStr << "'" << std::endl;
+                            }
+                        }
+                        nuevaSerie->agregarEpisodio(newEp);
+                    } else {
+                        std::cerr << "Advertencia: Formato de segmento de episodio inválido en la serie '" << nombre << "': '" << episodeSegment << "'" << std::endl;
                     }
                 }
             }
@@ -113,7 +160,6 @@ void ServicioStreaming::cargarArchivo(const std::string& nombreArchivo) {
     archivo.close();
     std::cout << "Datos cargados exitosamente desde " << nombreArchivo << ". Total de videos: " << videos.size() << std::endl;
 }
-
 
 void ServicioStreaming::mostrarVideosPorCalificacionOGenero(double calificacionMinima, const std::string& generoFiltro) {
     std::cout << "\n--- Videos filtrados por Calificación (" << std::fixed << std::setprecision(1) << calificacionMinima << "+) o Género ('" << (generoFiltro.empty() ? "Todos" : generoFiltro) << "') ---\n";
@@ -200,9 +246,6 @@ void ServicioStreaming::calificarVideo(const std::string& tituloVideo, int calif
         for (Video* video : videos) {
             Serie* serie = dynamic_cast<Serie*>(video);
             if (serie) {
-                // The calificarEpisodio method handles finding the episode by title
-                // and rating it, and will print messages directly.
-                // We're essentially just calling it if it's a series.
                 std::vector<Episodio>& episodios = serie->getEpisodios(); // Get mutable list of episodes
                 bool episodeFoundInSerie = false;
                 for (Episodio& ep : episodios) {
