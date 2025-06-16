@@ -1,41 +1,80 @@
 #ifndef SERVICIOSTREAMING_H
 #define SERVICIOSTREAMING_H
 
+#include <vector>
+#include <string>
+#include <memory> // For std::unique_ptr
 #include "video.h"
 #include "pelicula.h"
 #include "serie.h"
-#include "episodio.h" // Ensure Episode is known
-#include <vector>
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <algorithm> // For std::transform
 
+/**
+ * @class ServicioStreaming
+ * @brief Clase que gestiona una colección de videos (Películas y Series)
+ * y proporciona funcionalidades de carga, calificación y visualización.
+ */
 class ServicioStreaming {
-private:
-    std::vector<Video*> videos;
-
-    // Helper to find a video by title (case-insensitive)
-    Video* buscarVideoPorTitulo(const std::string& titulo) const;
-
 public:
-    ServicioStreaming() = default; // Default constructor
+    /**
+     * @brief Constructor por defecto de ServicioStreaming.
+     */
+    ServicioStreaming();
 
-    // Destructor to free dynamically allocated memory
+    /**
+     * @brief Destructor de ServicioStreaming.
+     * Libera la memoria de los objetos Video gestionados.
+     */
     ~ServicioStreaming();
 
-    // Load data from file
+    /**
+     * @brief Carga datos de videos desde un archivo CSV.
+     * @param nombreArchivo El nombre del archivo a cargar.
+     */
     void cargarArchivo(const std::string& nombreArchivo);
 
-    // Menu options implementations
-    void mostrarVideosPorCalificacionOGenero(double calificacionMinima, const std::string& generoFiltro);
-    void mostrarEpisodiosDeSerieConCalificacion(const std::string& nombreSerie, double calificacionMinima);
-    void mostrarPeliculasConCalificacion(double calificacionMinima);
-    void calificarVideo(const std::string& tituloVideo, int calificacion);
+    /**
+     * @brief Califica un video o un episodio por su nombre/título.
+     * @param nombreVideoEpisodio El nombre del video o el título del episodio a calificar.
+     * @param calificacion La calificación a asignar (1-5).
+     */
+    void calificarVideo(const std::string& nombreVideoEpisodio, int calificacion);
 
-    // <<< NUEVA FUNCIÓN PARA PRUEBAS UNITARIAS >>>
-    // Getter para acceder a los videos y verificar el estado interno en las pruebas.
-    const std::vector<Video*>& getVideos() const { return videos; }
+    /**
+     * @brief Muestra videos filtrados por calificación mínima y/o género.
+     * @param calificacionMinima La calificación mínima para filtrar (0.0 para no filtrar por calificación).
+     * @param genero El género para filtrar (cadena vacía para no filtrar por género).
+     */
+    void mostrarVideosPorCalificacionOGenero(double calificacionMinima, const std::string& genero) const;
+
+    /**
+     * @brief Muestra todos los episodios de una serie específica que cumplen con una calificación mínima.
+     * @param nombreSerie El nombre de la serie.
+     * @param calificacionMinima La calificación mínima de los episodios a mostrar.
+     */
+    void mostrarEpisodiosDeSerieConCalificacion(const std::string& nombreSerie, double calificacionMinima) const;
+
+    /**
+     * @brief Muestra todas las películas que cumplen con una calificación mínima.
+     * @param calificacionMinima La calificación mínima de las películas a mostrar.
+     */
+    void mostrarPeliculasConCalificacion(double calificacionMinima) const;
+
+    /**
+     * @brief Obtiene una referencia constante al vector de punteros a Video.
+     * @return Una referencia constante al vector de std::unique_ptr<Video>.
+     */
+    const std::vector<std::unique_ptr<Video>>& GetVideos() const; // Rename method "getVideos", Undocumented API: getVideos
+
+private:
+    std::vector<std::unique_ptr<Video>> videos; ///< Almacena punteros inteligentes a objetos Video.
+
+    // Helper methods for parsing
+    void parseLine(const std::string& line);
+    std::vector<int> parseCalificaciones(const std::string& s);
+    std::vector<Episodio> parseEpisodios(const std::string& s);
+
+    // Helper for case-insensitive comparison
+    static std::string toLower(const std::string& str);
 };
 
 #endif // SERVICIOSTREAMING_H

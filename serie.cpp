@@ -15,12 +15,12 @@ Serie::~Serie() {
 }
 
 // Método para agregar un episodio
-void Serie::agregarEpisodio(const Episodio& episodio) {
+void Serie::AgregarEpisodio(const Episodio& episodio) { // Rename method "agregarEpisodio"
     episodios.push_back(episodio);
 }
 
 // Método para calificar un episodio específico por su título
-void Serie::calificarEpisodio(const std::string& tituloEpisodio, int calificacion) {
+void Serie::CalificarEpisodio(const std::string& tituloEpisodio, int calificacion) { // Rename method "calificarEpisodio"
     bool found = false;
     for (Episodio& ep : episodios) {
         if (ep.getTitulo() == tituloEpisodio) {
@@ -40,11 +40,11 @@ void Serie::calificarEpisodio(const std::string& tituloEpisodio, int calificacio
 void Serie::mostrarDatos() const {
     std::cout << "--- Serie ---" << std::endl;
     imprimirInfoBase(); // Reutiliza el método de la clase base Video
-    mostrarEpisodios(); // Llama a mostrarEpisodios para listar los episodios
+    MostrarEpisodios(); // Llama a MostrarEpisodios para listar los episodios (Renamed call)
 }
 
 // Método para mostrar todos los episodios de la serie
-void Serie::mostrarEpisodios() const {
+void Serie::MostrarEpisodios() const {
     if (episodios.empty()) {
         std::cout << "No hay episodios en esta serie." << std::endl;
         return;
@@ -58,8 +58,7 @@ void Serie::mostrarEpisodios() const {
 }
 
 // Método para mostrar episodios con una calificación mínima
-// Inside serie.cpp, within Serie::mostrarEpisodiosConCalificacion
-void Serie::mostrarEpisodiosConCalificacion(double calificacionMinima) const {
+void Serie::MostrarEpisodiosConCalificacion(double calificacionMinima) const {
     bool found_matching_episode = false; // Flag to track if any episode meets criteria
     std::cout << "Episodios de '" << getNombre() << "' con calificación >= "
               << std::fixed << std::setprecision(1) << calificacionMinima << ":" << std::endl;
@@ -69,17 +68,15 @@ void Serie::mostrarEpisodiosConCalificacion(double calificacionMinima) const {
             std::cout << "  - Título: " << ep.getTitulo()
                       << ", Temporada: " << ep.getTemporada()
                       << ", Calificación: " << std::fixed << std::setprecision(1) << ep.getCalificacionPromedio() << std::endl;
-            found_matching_episode = true; // Set to true if at least one episode is found
+            found_matching_episode = true;
         }
     }
 
     if (!found_matching_episode) {
-        // PASTE THE STRING YOU COPIED FROM tests.cpp HERE:
         std::cout << "No se encontraron episodios con esa calificación." << std::endl;
     }
+}
 
-    // MODIFICACION APLICADA: Asegurarse que esta cadena coincida EXACTAMENTE con el test.
-    if (!found_matching_episode) {
-        std::cout << "No se encontraron episodios con esa calificación." << std::endl;
-    }
+const std::vector<Episodio>& Serie::GetEpisodios() const { // Rename method "getEpisodios"
+    return episodios;
 }
