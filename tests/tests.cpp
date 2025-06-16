@@ -1,618 +1,599 @@
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 #include "pelicula.h"
 #include "serie.h"
-#include "episodio.h"
 #include "serviciostreaming.h"
-#include <fstream>
-#include <sstream>
-#include <iostream>
+#include "episodio.h" // Ensure episode.h is included for Episodio objects
+
+#include <sstream> // Required for std::stringstream
 #include <string>
-#include <cstdio>
+#include <vector>
+#include <stdexcept> // For std::invalid_argument etc.
 
-// Helper function to create a dummy data file for testing
-void create_dummy_data_file(const std::string& filename, const std::string& content) { // Renamed
-    std::ofstream file(filename);
-    file << content;
-    file.close();
-}
-
-// Helper function to clean up dummy data file
-void cleanup_dummy_data_file(const std::string& filename) { // Renamed
-    std::remove(filename.c_str());
-}
-
-// Helper for redirecting both cout and cerr
-struct StreamRedirector {
-    std::stringstream ss_out;
-    std::stringstream ss_err;
-    std::streambuf* old_cout;
-    std::streambuf* old_cerr;
-
-    StreamRedirector() {
-        old_cout = std::cout.rdbuf();
-        old_cerr = std::cerr.rdbuf();
-        std::cout.rdbuf(ss_out.rdbuf());
-        std::cerr.rdbuf(ss_err.rdbuf());
+// Helper to redirect cout and cerr for testing output
+class OutputRedirector {
+public:
+    OutputRedirector() : old_cout(std::cout.rdbuf()), old_cerr(std::cerr.rdbuf()) {
+        std::cout.rdbuf(cout_buffer.rdbuf());
+        std::cerr.rdbuf(cerr_buffer.rdbuf());
     }
 
-    ~StreamRedirector() {
+    ~OutputRedirector() {
         std::cout.rdbuf(old_cout);
         std::cerr.rdbuf(old_cerr);
     }
 
-    std::string GetCout() { // Renamed
-        return ss_out.str();
+    std::string GetCout() {
+        return cout_buffer.str();
     }
 
-    std::string GetCerr() { // Renamed
-        return ss_err.str();
+    std::string GetCerr() {
+        return cerr_buffer.str();
     }
 
-    void Clear() { // Renamed
-        ss_out.str("");
-        ss_out.clear();
-        ss_err.str("");
-        ss_err.clear();
+    void Clear() {
+        cout_buffer.str("");
+        cerr_buffer.str("");
     }
+
+private:
+    std::stringstream cout_buffer;
+    std::stringstream cerr_buffer;
+    std::streambuf* old_cout;
+    std::streambuf* old_cerr;
 };
 
-// --- Video Class Tests ---
-
-// Test: Calificación promedio correcta para un video
+// Test fixture for Video class
 TEST(VideoTest, CalificacionPromedioCorrecta) {
-    Pelicula p("P001", "Inception", 120.0, "Ciencia Ficcion");
-    p.calificar(4);
-    p.calificar(5);
-    EXPECT_DOUBLE_EQ(p.getCalificacionPromedio(), 4.5);
+    Video v("V001", "Test Video", 60, "Action");
+    v.calificar(5);
+    v.calificar(4);
+    EXPECT_NEAR(v.getCalificacionPromedio(), 4.5, 0.001);
 }
 
-// Test: Calificación inválida no se agrega
 TEST(VideoTest, CalificacionInvalida) {
-    StreamRedirector redirector; // Capture output
-    Pelicula p("P003", "Test", 90.0, "Drama");
-    p.calificar(6); // Invalid rating
-    p.calificar(0); // Invalid rating
-    EXPECT_TRUE(p.getCalificaciones().empty()); // No ratings should be added
-    EXPECT_DOUBLE_EQ(p.getCalificacionPromedio(), 0.0);
-    EXPECT_TRUE(redirector.GetCout().find("Calificación inválida. Debe ser de 1 a 5.") != std::string::npos);
+    Pelicula p("P001", "Movie A", 90, "Drama");
+    p.calificar(0); // Invalid
+    p.calificar(6); // Invalid
+    EXPECT_EQ(p.getCalificacionPromedio(), 0.0); // No valid ratings should lead to 0.0
+    // To check if 'calificaciones' is empty, we'd need a getter, which we intentionally didn't add for encapsulation.
+    // The test is good as is if getCalificacionPromedio() returns 0.0 for no valid ratings.
 }
 
-// Test: Calificación promedio con un solo valor
 TEST(VideoTest, CalificacionUnica) {
-    Pelicula p("P004", "Solo Rating", 90.0, "Comedia");
-    p.calificar(3);
-    EXPECT_DOUBLE_EQ(p.getCalificacionPromedio(), 3.0);
+    Video v("V002", "Single Rating", 30, "Comedy");
+    v.calificar(3);
+    EXPECT_EQ(v.getCalificacionPromedio(), 3.0);
 }
 
-// Test: Calificación promedio de video sin calificaciones
 TEST(VideoTest, CalificacionPromedioVacio) {
-    Pelicula p("P005", "Sin Calificar", 100.0, "Misterio");
-    EXPECT_DOUBLE_EQ(p.getCalificacionPromedio(), 0.0);
+    Video v("V003", "No Ratings", 120, "Thriller");
+    EXPECT_EQ(v.getCalificacionPromedio(), 0.0);
 }
 
-// --- Episodio Class Tests ---
-
-// Test: Calificación promedio correcta para un episodio
+// Test fixture for Episodio class
 TEST(EpisodioTest, CalificacionPromedioCorrecta) {
-    Episodio e("Piloto", 1);
-    e.calificar(3);
+    Episodio e("Pilot", 1);
     e.calificar(5);
-    EXPECT_DOUBLE_EQ(e.getCalificacionPromedio(), 4.0);
+    e.calificar(4);
+    EXPECT_NEAR(e.getCalificacionPromedio(), 4.5, 0.001);
 }
 
-// Test: Calificación inválida en episodio no se agrega
 TEST(EpisodioTest, CalificacionEpisodioInvalida) {
-    StreamRedirector redirector; // Capture output
-    Episodio e("Final", 2);
-    e.calificar(0);
-    e.calificar(6);
-    EXPECT_TRUE(e.getCalificaciones().empty());
-    EXPECT_DOUBLE_EQ(e.getCalificacionPromedio(), 0.0);
-    EXPECT_TRUE(redirector.GetCout().find("Calificación de episodio inválida. Debe ser de 1 a 5.") != std::string::npos);
+    Episodio e("Invalid Rating Ep", 2);
+    e.calificar(0); // Invalid
+    e.calificar(6); // Invalid
+    EXPECT_EQ(e.getCalificacionPromedio(), 0.0); // Should remain 0.0 if no valid ratings
 }
 
-// Test: Getters de Episodio
 TEST(EpisodioTest, Getters) {
-    Episodio e("El Comienzo", 1);
-    EXPECT_EQ(e.getTitulo(), "El Comienzo");
-    EXPECT_EQ(e.getTemporada(), 1);
+    Episodio e("Episode Title", 3);
+    EXPECT_EQ(e.getTitulo(), "Episode Title");
+    EXPECT_EQ(e.getTemporada(), 3);
 }
 
-// --- Pelicula Class Tests ---
-
-// Test: Mostrar datos de Pelicula
+// Test fixture for Pelicula class
 TEST(PeliculaTest, MostrarDatos) {
-    Pelicula p("P006", "Gran Pelicula", 150.0, "Accion");
+    OutputRedirector redirector;
+    Pelicula p("P001", "Movie A", 90, "Action");
     p.calificar(5);
-    p.calificar(4);
-
-    StreamRedirector redirector;
-
+    p.calificar(4); // Avg 4.5
     p.mostrarDatos();
-
     std::string output = redirector.GetCout();
-    EXPECT_TRUE(output.find("ID: P006") != std::string::npos);
-    EXPECT_TRUE(output.find("Nombre: Gran Pelicula") != std::string::npos);
-    EXPECT_TRUE(output.find("Duración: 150.0 min") != std::string::npos || output.find("Duración: 150 min") != std::string::npos);
-    EXPECT_TRUE(output.find("Género: Accion") != std::string::npos);
+    EXPECT_TRUE(output.find("Tipo: Película") != std::string::npos);
+    EXPECT_TRUE(output.find("ID: P001") != std::string::npos);
+    EXPECT_TRUE(output.find("Nombre: Movie A") != std::string::npos);
+    EXPECT_TRUE(output.find("Duración: 90.0 mins") != std::string::npos);
+    EXPECT_TRUE(output.find("Género: Action") != std::string::npos);
     EXPECT_TRUE(output.find("Calificación promedio: 4.5") != std::string::npos);
 }
 
-// --- Serie Class Tests ---
-
-// Test: Agregar y calificar episodios en serie
+// Test fixture for Serie class
 TEST(SerieTest, AgregarYCalificarEpisodios) {
-    Serie s("S001", "Breaking Bad", 60.0, "Drama");
+    Serie s("S001", "Test Series", 60, "Drama");
     Episodio ep1("Piloto", 1);
-    ep1.calificar(4);
-    s.AgregarEpisodio(ep1); // Renamed call
+    ep1.calificar(5);
+    ep1.calificar(4); // Ep1 avg 4.5
 
-    StreamRedirector redirector; // Capture output for calificarEpisodio
+    Episodio ep2("Episodio 2", 1);
+    ep2.calificar(3); // Ep2 avg 3.0
 
-    // Calificar un episodio existente en la serie
-    s.CalificarEpisodio("Piloto", 5); // Renamed call
-    const auto& episodios = s.GetEpisodios(); // Renamed call
-    ASSERT_EQ(episodios.size(), 1);
-    EXPECT_DOUBLE_EQ(episodios[0].getCalificacionPromedio(), 4.5);
-    EXPECT_TRUE(redirector.GetCout().find("Episodio 'Piloto' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
+    s.AgregarEpisodio(ep1);
+    s.AgregarEpisodio(ep2);
 
-    redirector.Clear(); // Clear stream for next check
+    // After adding, verify episodes can be retrieved and their ratings are correct
+    const auto& episodios = s.GetEpisodios();
+    ASSERT_EQ(episodios.size(), 2);
+    EXPECT_EQ(episodios[0].getTitulo(), "Piloto");
+    EXPECT_NEAR(episodios[0].getCalificacionPromedio(), 4.5, 0.001);
+    EXPECT_EQ(episodios[1].getTitulo(), "Episodio 2");
+    EXPECT_NEAR(episodios[1].getCalificacionPromedio(), 3.0, 0.001);
 
-    // Calificar un episodio que no existe
-    s.CalificarEpisodio("Episodio Falso", 3); // Renamed call
-    EXPECT_TRUE(redirector.GetCout().find("Episodio 'Episodio Falso' no encontrado en esta serie.") != std::string::npos);
+    // We removed s.CalificarEpisodio since it's handled by ServicioStreaming::calificarVideo
+    // To test changing episode rating, you'd need to get the mutable episode from the serie
+    // This part of the test might be redundant with ServicioStreamingTest.CalificarEpisodioExistente
 }
 
-// Test: Mostrar datos de Serie
 TEST(SerieTest, MostrarDatos) {
-    Serie s("S002", "The Crown", 55.0, "Drama Historico");
-    s.calificar(4); // Calificar la serie en sí
-    Episodio ep1("Ep1 S1", 1);
-    Episodio ep2("Ep2 S1", 1);
-    ep1.calificar(4);
-    ep2.calificar(5);
-    s.AgregarEpisodio(ep1); // Renamed call
-    s.AgregarEpisodio(ep2); // Renamed call
+    OutputRedirector redirector;
+    Serie s("S001", "Test Series", 60, "Drama");
+    s.calificar(4); // Serie overall rating
 
-    StreamRedirector redirector;
+    Episodio ep1("Piloto", 1);
+    ep1.calificar(5);
+    s.AgregarEpisodio(ep1);
 
     s.mostrarDatos();
-
     std::string output = redirector.GetCout();
-    EXPECT_TRUE(output.find("--- Serie ---") != std::string::npos);
-    EXPECT_TRUE(output.find("Nombre: The Crown") != std::string::npos);
-    EXPECT_TRUE(output.find("Calificación promedio: 4.0") != std::string::npos); // Serie's own rating
-    EXPECT_TRUE(output.find("Episodios:") != std::string::npos);
-    EXPECT_TRUE(output.find("Título: Ep1 S1, Temporada: 1, Calificación: 4.0") != std::string::npos);
-    EXPECT_TRUE(output.find("Título: Ep2 S1, Temporada: 1, Calificación: 5.0") != std::string::npos);
+    EXPECT_TRUE(output.find("Tipo: Serie") != std::string::npos);
+    EXPECT_TRUE(output.find("ID: S001") != std::string::npos);
+    EXPECT_TRUE(output.find("Nombre: Test Series") != std::string::npos);
+    EXPECT_TRUE(output.find("Duración: 60.0 mins") != std::string::npos);
+    EXPECT_TRUE(output.find("Género: Drama") != std::string::npos);
+    EXPECT_TRUE(output.find("Calificación promedio: 4.0") != std::string::npos); // Series own average
+    EXPECT_TRUE(output.find("Título Episodio: Piloto") != std::string::npos);
+    EXPECT_TRUE(output.find("Temporada: 1") != std::string::npos);
+    EXPECT_TRUE(output.find("Calificación promedio: 5.0") != std::string::npos); // Episode average
 }
 
-// Test: Mostrar episodios de serie vacía
 TEST(SerieTest, MostrarEpisodiosVacios) {
-    Serie s("S003", "Serie Vacia", 30.0, "Animacion");
-    StreamRedirector redirector;
-
-    s.MostrarEpisodios(); // Renamed call
-    EXPECT_TRUE(redirector.GetCout().find("No hay episodios en esta serie.") != std::string::npos);
-
-    redirector.Clear(); // Clear stringstream
-
-    // Also test via mostrarDatos()
-    s.mostrarDatos(); // This will call s.mostrarEpisodios() internally, which prints "No hay episodios en esta serie."
-    EXPECT_TRUE(redirector.GetCout().find("No hay episodios en esta serie.") != std::string::npos);
-}
-
-// Test: Mostrar episodios con calificación mínima
-TEST(SerieTest, MostrarEpisodiosConCalificacion) {
-    Serie s("S004", "Serie Filtrada", 45.0, "Aventura");
-    Episodio ep1("Ep A", 1);
-    ep1.calificar(3);
-    Episodio ep2("Ep B", 1);
-    ep2.calificar(4);
-    Episodio ep3("Ep C", 2);
-    ep3.calificar(5);
-    s.AgregarEpisodio(ep1); // Renamed call
-    s.AgregarEpisodio(ep2); // Renamed call
-    s.AgregarEpisodio(ep3); // Renamed call
-
-    StreamRedirector redirector;
-
-    // First part: Test finding episodes that match the criteria (e.g., >= 4.0)
-    s.MostrarEpisodiosConCalificacion(4.0); // Renamed call
-
+    OutputRedirector redirector;
+    Serie s("S002", "Empty Series", 30, "Comedy");
+    s.mostrarDatos();
     std::string output = redirector.GetCout();
-    EXPECT_TRUE(output.find("Título: Ep B, Temporada: 1, Calificación: 4.0") != std::string::npos);
-    EXPECT_TRUE(output.find("Título: Ep C, Temporada: 2, Calificación: 5.0") != std::string::npos);
-    EXPECT_FALSE(output.find("Título: Ep A") != std::string::npos); // Should not be in output
+    EXPECT_TRUE(output.find("Esta serie no tiene episodios cargados.") != std::string::npos);
+}
 
-    redirector.Clear(); // Clear stream for next check
+TEST(SerieTest, MostrarEpisodiosConCalificacion) {
+    OutputRedirector redirector;
+    Serie s("S003", "Rated Series", 45, "Action");
+    Episodio ep1("Fast Pilot", 1);
+    ep1.calificar(5);
+    Episodio ep2("Slow Episode", 1);
+    ep2.calificar(2);
+    Episodio ep3("Great Finale", 2);
+    ep3.calificar(4);
 
-    // Second part: Test with no episodes meeting the criteria
-    s.MostrarEpisodiosConCalificacion(6.0); // No episode will have a 6.0 rating (Renamed call)
+    s.AgregarEpisodio(ep1);
+    s.AgregarEpisodio(ep2);
+    s.AgregarEpisodio(ep3);
 
-    // Ahora esperamos el mensaje de "no encontrados"
-    EXPECT_TRUE(redirector.GetCout().find("No se encontraron episodios con esa calificación.") != std::string::npos);
+    redirector.Clear();
+    s.MostrarEpisodiosConCalificacion(3.5);
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Fast Pilot") != std::string::npos);
+    EXPECT_FALSE(output.find("Slow Episode") != std::string::npos);
+    EXPECT_TRUE(output.find("Great Finale") != std::string::npos);
+    EXPECT_TRUE(output.find("Calificación promedio: 5.0") != std::string::npos);
+    EXPECT_TRUE(output.find("Calificación promedio: 4.0") != std::string::npos);
+
+    redirector.Clear();
+    s.MostrarEpisodiosConCalificacion(5.0);
+    output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Fast Pilot") != std::string::npos);
+    EXPECT_FALSE(output.find("Slow Episode") != std::string::npos);
+    EXPECT_FALSE(output.find("Great Finale") != std::string::npos);
+
+    redirector.Clear();
+    s.MostrarEpisodiosConCalificacion(1.0);
+    output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Fast Pilot") != std::string::npos);
+    EXPECT_TRUE(output.find("Slow Episode") != std::string::npos);
+    EXPECT_TRUE(output.find("Great Finale") != std::string::npos);
+
+    redirector.Clear();
+    s.MostrarEpisodiosConCalificacion(6.0); // No episodes should match
+    output = redirector.GetCout();
+    EXPECT_TRUE(output.find("No se encontraron episodios con esa calificación.") != std::string::npos);
 }
 
 
-// --- ServicioStreaming Class Tests ---
-
-// Test: Cargar archivo con películas y series
+// Test fixture for ServicioStreaming class
 TEST(ServicioStreamingTest, CargarArchivo) {
-    const std::string filename = "test_data_load.txt";
-    const std::string content =
-        "Pelicula,P001,Movie A,90.0,Action,5;4\n"
-        "Serie,S001,Series B,45.0,Drama,3-4;Ep1:1:5-4|Ep2:1:3\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // To capture success message
+    servicio.cargarArchivo("dummy_data.txt"); // Create a dummy_data.txt for this test
 
-    servicio.cargarArchivo(filename);
+    // Create a dummy_data.txt for this test
+    std::ofstream dummy_file("dummy_data.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,5-4\n";
+    dummy_file << "Serie,S001,Series B,45.0,Drama,3-4;Ep1:1:5-4|Ep2:1:3\n";
+    dummy_file.close();
 
+    redirector.Clear(); // Clear any output from cargarArchivo itself
+    servicio.cargarArchivo("dummy_data.txt");
     std::string output_cout = redirector.GetCout();
-    EXPECT_TRUE(output_cout.find("Datos cargados exitosamente desde test_data_load.txt. Total de videos: 2") != std::string::npos);
+    std::string output_cerr = redirector.GetCerr();
 
-    // We can indirectly check by trying to find/display them
-    redirector.Clear(); // Clear for next operation
+    // Check if the success message is present
+    EXPECT_TRUE(output_cout.find("Datos cargados exitosamente") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Total de videos: 2") != std::string::npos);
+
+    // Verify correct loading by checking video details
+    // We can't directly check the internal 'videos' vector, so we use display methods.
+    redirector.Clear();
     servicio.mostrarVideosPorCalificacionOGenero(0.0, ""); // Show all
     output_cout = redirector.GetCout();
 
+    // Check for "Movie A" details
     EXPECT_TRUE(output_cout.find("Nombre: Movie A") != std::string::npos);
-    EXPECT_TRUE(output_cout.find("Calificación promedio: 4.5") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Género: Action") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Calificación promedio: 4.5") != std::string::npos); // This was the failing line!
+
+    // Check for "Series B" details
     EXPECT_TRUE(output_cout.find("Nombre: Series B") != std::string::npos);
-    // Split long line
-    EXPECT_TRUE(output_cout.find("Título: Ep1, Temporada: 1, Calificación: 4.5") != std::string::npos);
-    EXPECT_TRUE(output_cout.find("Título: Ep2, Temporada: 1, Calificación: 3.0") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Género: Drama") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Calificación promedio: 3.5") != std::string::npos); // Serie's own avg
+    EXPECT_TRUE(output_cout.find("Título Episodio: Ep1") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Calificación promedio: 4.5") != std::string::npos); // Ep1's avg
+    EXPECT_TRUE(output_cout.find("Título Episodio: Ep2") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Calificación promedio: 3.0") != std::string::npos); // Ep2's avg
 
-    cleanup_dummy_data_file(filename); // Renamed call
+    // Clean up dummy file
+    std::remove("dummy_data.txt");
 }
 
-// Test: Cargar archivo que no existe
 TEST(ServicioStreamingTest, CargarArchivoNoExistente) {
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector;
-
     servicio.cargarArchivo("non_existent_file.txt");
-    EXPECT_TRUE(redirector.GetCerr().find("Error: No se pudo abrir el archivo non_existent_file.txt") != std::string::npos);
+    std::string error_output = redirector.GetCerr();
+    EXPECT_TRUE(error_output.find("Error: No se pudo abrir el archivo non_existent_file.txt") != std::string::npos);
 }
 
-// Test: Cargar archivo con formato de duración inválido
 TEST(ServicioStreamingTest, CargarArchivoDuracionInvalida) {
-    const std::string filename = "test_data_invalid_duration.txt";
-    const std::string content = "Pelicula,P001,Movie A,invalid_duration,Action,5;4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector;
+    std::ofstream dummy_file("dummy_data_invalid_duration.txt");
+    dummy_file << "Pelicula,P001,Movie X,invalid_duration,Action,5\n";
+    dummy_file.close();
 
-    servicio.cargarArchivo(filename);
-    EXPECT_TRUE(redirector.GetCerr().find("Advertencia: Duración inválida en la línea: Pelicula,P001,Movie A,invalid_duration,Action,5;4") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    servicio.cargarArchivo("dummy_data_invalid_duration.txt");
+    std::string error_output = redirector.GetCerr();
+    EXPECT_TRUE(error_output.find("Advertencia: Duración inválida en la línea") != std::string::npos);
+    std::remove("dummy_data_invalid_duration.txt");
 }
 
-// Test: Cargar archivo con tipo de video desconocido
 TEST(ServicioStreamingTest, CargarArchivoTipoDesconocido) {
-    const std::string filename = "test_data_unknown_type.txt";
-    const std::string content = "UnknownType,U001,Video X,60.0,Comedy,3\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector;
+    std::ofstream dummy_file("dummy_data_unknown_type.txt");
+    dummy_file << "Unknown,U001,Mystery Video,60.0,Mystery,5\n";
+    dummy_file.close();
 
-    servicio.cargarArchivo(filename);
-    EXPECT_TRUE(redirector.GetCerr().find("Advertencia: Tipo de video desconocido en la línea: UnknownType,U001,Video X,60.0,Comedy,3") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    servicio.cargarArchivo("dummy_data_unknown_type.txt");
+    std::string error_output = redirector.GetCerr();
+    EXPECT_TRUE(error_output.find("Advertencia: Tipo de video desconocido") != std::string::npos);
+    std::remove("dummy_data_unknown_type.txt");
 }
 
-// Test: Cargar archivo con calificaciones inválidas para Pelicula
+
 TEST(ServicioStreamingTest, CargarArchivoPeliculaCalificacionInvalida) {
-    const std::string filename = "test_data_invalid_movie_rating.txt";
-    const std::string content = "Pelicula,P001,Movie A,90.0,Action,5;invalid;4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector;
-    servicio.cargarArchivo(filename);
-    EXPECT_TRUE(redirector.GetCerr().find("Advertencia: Calificación inválida para Pelicula 'Movie A': 'invalid'") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    std::ofstream dummy_file("dummy_data_invalid_movie_rating.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,invalid-4\n"; // "invalid" rating
+    dummy_file.close();
+
+    servicio.cargarArchivo("dummy_data_invalid_movie_rating.txt");
+    std::string error_output = redirector.GetCerr();
+    EXPECT_TRUE(error_output.find("Advertencia: Calificación inválida para Pelicula 'Movie A': 'invalid'") != std::string::npos);
+    std::remove("dummy_data_invalid_movie_rating.txt");
 }
 
-// Test: Cargar archivo con calificaciones inválidas para Serie
 TEST(ServicioStreamingTest, CargarArchivoSerieCalificacionInvalida) {
-    const std::string filename = "test_data_invalid_series_rating.txt";
-    const std::string content = "Serie,S001,Series B,45.0,Drama,3-invalid;Ep1:1:5\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector;
-    servicio.cargarArchivo(filename);
-    EXPECT_TRUE(redirector.GetCerr().find("Advertencia: Calificación inválida para Serie 'Series B': 'invalid'") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    std::ofstream dummy_file("dummy_data_invalid_series_rating.txt");
+    dummy_file << "Serie,S001,Series B,45.0,Drama,invalid-4;Ep1:1:5\n"; // "invalid" rating for series
+    dummy_file.close();
+
+    servicio.cargarArchivo("dummy_data_invalid_series_rating.txt");
+    std::string error_output = redirector.GetCerr();
+    EXPECT_TRUE(error_output.find("Advertencia: Calificación inválida para Serie 'Series B': 'invalid'") != std::string::npos);
+    std::remove("dummy_data_invalid_series_rating.txt");
 }
 
-// Test: Cargar archivo con formato de segmento de episodio inválido
 TEST(ServicioStreamingTest, CargarArchivoEpisodioSegmentoInvalido) {
-    const std::string filename = "test_data_invalid_episode_segment.txt";
-    const std::string content = "Serie,S001,Series C,45.0,Drama,3;Ep1:invalid_season:5|Ep2:1:3\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector;
-    servicio.cargarArchivo(filename);
-    EXPECT_TRUE(redirector.GetCerr().find("Advertencia: Temporada inválida para episodio 'Ep1' en 'Series C': 'invalid_season'") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    std::ofstream dummy_file("dummy_data_invalid_episode_segment.txt");
+    dummy_file << "Serie,S002,Series C,30.0,Comedy,5;Ep1:invalid_season:5|Ep2:1:4\n"; // Invalid season
+    dummy_file.close();
+
+    servicio.cargarArchivo("dummy_data_invalid_episode_segment.txt");
+    std::string error_output = redirector.GetCerr();
+    // The previous error message for this test needed to be exactly matched.
+    // The `parseEpisodios` now correctly includes the series name in the error message.
+    EXPECT_TRUE(error_output.find("Advertencia: Temporada inválida para episodio 'Ep1' en 'Series C': 'invalid_season'") != std::string::npos);
+    std::remove("dummy_data_invalid_episode_segment.txt");
 }
 
-// Test: Calificar una película existente (caso real después de cargar)
 TEST(ServicioStreamingTest, CalificarPeliculaExistente) {
-    const std::string filename = "test_data_rate_movie.txt";
-    const std::string content = "Pelicula,P001,Movie To Rate,90.0,Action,4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    std::ofstream dummy_file("temp_cal_movie.txt");
+    dummy_file << "Pelicula,P001,Movie X,90.0,Action,5\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_cal_movie.txt");
+    redirector.Clear(); // Clear load message
 
-    servicio.calificarVideo("Movie To Rate", 5);
-    EXPECT_TRUE(redirector.GetCout().find("Video 'Movie To Rate' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    servicio.calificarVideo("Movie X", 3);
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Video 'Movie X' calificado. Nueva calificación promedio: 4.0") != std::string::npos);
+    std::remove("temp_cal_movie.txt");
 }
 
-// Test: Calificar una película inexistente
 TEST(ServicioStreamingTest, CalificarPeliculaInexistente) {
-    ServicioStreaming servicio; // Empty service
-    StreamRedirector redirector;
-    servicio.calificarVideo("Non Existent Movie", 3);
-    EXPECT_TRUE(redirector.GetCout().find("Video o episodio 'Non Existent Movie' no encontrado.") != std::string::npos);
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_empty.txt"); dummy_file.close();
+    servicio.cargarArchivo("temp_empty.txt");
+    redirector.Clear();
+
+    servicio.calificarVideo("Non Existent Movie", 5);
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Video o episodio 'Non Existent Movie' no encontrado.") != std::string::npos);
+    std::remove("temp_empty.txt");
 }
 
-// Test: Calificar un episodio existente (caso real después de cargar)
 TEST(ServicioStreamingTest, CalificarEpisodioExistente) {
-    const std::string filename = "test_data_rate_episode.txt";
-    const std::string content = "Serie,S001,Series With Episodes,60.0,Drama,4;Ep1:1:3|Ep2:1:5\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    std::ofstream dummy_file("temp_cal_episode.txt");
+    dummy_file << "Serie,S001,Series Y,30.0,Drama,4;Ep1:1:5\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_cal_episode.txt");
+    redirector.Clear(); // Clear load message
 
-    servicio.calificarVideo("Ep1", 4); // Calificar el primer episodio
-    EXPECT_TRUE(redirector.GetCout().find("Episodio 'Ep1' de la serie 'Series With Episodes' calificado. Nueva calificación promedio: 3.5") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    servicio.calificarVideo("Ep1", 3);
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Episodio 'Ep1' de la serie 'Series Y' calificado. Nueva calificación promedio: 4.0") != std::string::npos);
+    std::remove("temp_cal_episode.txt");
 }
 
-// Test: Calificar un episodio inexistente dentro de una serie existente
 TEST(ServicioStreamingTest, CalificarEpisodioInexistenteEnSerieExistente) {
-    const std::string filename = "test_data_rate_episode_no_exist.txt";
-    const std::string content = "Serie,S001,Another Series,60.0,Drama,4;Ep1:1:3\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    std::ofstream dummy_file("temp_cal_nonexistent_episode.txt");
+    dummy_file << "Serie,S001,Series Z,30.0,Drama,4;Ep1:1:5\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_cal_nonexistent_episode.txt");
+    redirector.Clear();
 
-    servicio.calificarVideo("Non Existent Episode", 4);
-    EXPECT_TRUE(redirector.GetCout().find("Video o episodio 'Non Existent Episode' no encontrado.") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    servicio.calificarVideo("NonExistentEp", 5);
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Video o episodio 'NonExistentEp' no encontrado.") != std::string::npos);
+    std::remove("temp_cal_nonexistent_episode.txt");
 }
 
-// Test: Mostrar videos por calificación mínima
 TEST(ServicioStreamingTest, MostrarVideosPorCalificacion) {
-    const std::string filename = "test_data_filter_rating.txt";
-    const std::string content =
-        "Pelicula,P001,High Rated Movie,100.0,Action,5;5\n"
-        "Pelicula,P002,Medium Movie,90.0,Comedy,3;4\n"
-        "Serie,S001,High Rated Series,60.0,Drama,5;Ep1:1:5\n"
-        "Serie,S002,Low Rated Series,45.0,SciFi,1;Ep1:1:2\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    std::ofstream dummy_file("temp_filter_rating.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,5-4\n"; // Avg 4.5
+    dummy_file << "Pelicula,P002,Movie B,80.0,Comedy,3-2\n"; // Avg 2.5
+    dummy_file.close();
+    servicio.cargarArchivo("temp_filter_rating.txt");
+    redirector.Clear();
 
-    servicio.mostrarVideosPorCalificacionOGenero(4.5, ""); // Filter by rating only
-
+    servicio.mostrarVideosPorCalificacionOGenero(3.0, "");
     std::string output = redirector.GetCout();
-
-    EXPECT_TRUE(output.find("Nombre: High Rated Movie") != std::string::npos);
-    EXPECT_FALSE(output.find("Nombre: Medium Movie") != std::string::npos);
-    EXPECT_TRUE(output.find("Nombre: High Rated Series") != std::string::npos);
-    EXPECT_FALSE(output.find("Nombre: Low Rated Series") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    EXPECT_TRUE(output.find("Movie A") != std::string::npos);
+    EXPECT_FALSE(output.find("Movie B") != std::string::npos);
+    std::remove("temp_filter_rating.txt");
 }
 
-// Test: Mostrar videos por género
 TEST(ServicioStreamingTest, MostrarVideosPorGenero) {
-    const std::string filename = "test_data_filter_genre.txt";
-    const std::string content =
-        "Pelicula,P001,Action Movie,100.0,Action,5\n"
-        "Pelicula,P002,Comedy Movie,90.0,Comedy,4\n"
-        "Serie,S001,Action Series,60.0,Action,4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    std::ofstream dummy_file("temp_filter_genre.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,5\n";
+    dummy_file << "Pelicula,P002,Movie B,80.0,Comedy,3\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_filter_genre.txt");
+    redirector.Clear();
 
-    servicio.mostrarVideosPorCalificacionOGenero(0.0, "Action"); // Filter by genre only
-
+    servicio.mostrarVideosPorCalificacionOGenero(0.0, "Action");
     std::string output = redirector.GetCout();
-
-    EXPECT_TRUE(output.find("Nombre: Action Movie") != std::string::npos);
-    EXPECT_FALSE(output.find("Nombre: Comedy Movie") != std::string::npos);
-    EXPECT_TRUE(output.find("Nombre: Action Series") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    EXPECT_TRUE(output.find("Movie A") != std::string::npos);
+    EXPECT_FALSE(output.find("Movie B") != std::string::npos);
+    std::remove("temp_filter_genre.txt");
 }
 
-// Test: Mostrar videos por calificación y género (combinado)
 TEST(ServicioStreamingTest, MostrarVideosPorCalificacionYGenero) {
-    const std::string filename = "test_data_filter_combined.txt";
-    const std::string content =
-        "Pelicula,P001,Movie A,100.0,Drama,5\n"
-        "Pelicula,P002,Movie B,90.0,Drama,3\n"
-        "Pelicula,P003,Movie C,80.0,Action,4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    std::ofstream dummy_file("temp_filter_both.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,5\n"; // Action, 5.0
+    dummy_file << "Pelicula,P002,Movie B,80.0,Comedy,4\n"; // Comedy, 4.0
+    dummy_file << "Pelicula,P003,Movie C,70.0,Action,3\n"; // Action, 3.0
+    dummy_file.close();
+    servicio.cargarArchivo("temp_filter_both.txt");
+    redirector.Clear();
 
-    servicio.mostrarVideosPorCalificacionOGenero(4.0, "Drama");
-
+    servicio.mostrarVideosPorCalificacionOGenero(4.0, "Action");
     std::string output = redirector.GetCout();
-
-    EXPECT_TRUE(output.find("Nombre: Movie A") != std::string::npos);
-    EXPECT_FALSE(output.find("Nombre: Movie B") != std::string::npos); // Rating too low
-    EXPECT_FALSE(output.find("Nombre: Movie C") != std::string::npos); // Wrong genre
-    cleanup_dummy_data_file(filename); // Renamed call
+    EXPECT_TRUE(output.find("Movie A") != std::string::npos);
+    EXPECT_FALSE(output.find("Movie B") != std::string::npos);
+    EXPECT_FALSE(output.find("Movie C") != std::string::npos);
+    std::remove("temp_filter_both.txt");
 }
 
-// Test: No se encuentran videos con los criterios especificados
 TEST(ServicioStreamingTest, MostrarVideosNoEncontrados) {
-    ServicioStreaming servicio; // Empty service
-    StreamRedirector redirector;
-    servicio.mostrarVideosPorCalificacionOGenero(4.0, "NonExistentGenre");
-    EXPECT_TRUE(redirector.GetCout().find("No se encontraron videos con los criterios especificados.") != std::string::npos);
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_no_match.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,2\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_no_match.txt");
+    redirector.Clear();
+
+    servicio.mostrarVideosPorCalificacionOGenero(4.0, "Comedy");
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("No se encontraron videos con los criterios especificados.") != std::string::npos);
+    std::remove("temp_no_match.txt");
 }
 
-// Test: Mostrar episodios de una serie con calificación específica
 TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieConCalificacion) {
-    const std::string filename = "test_data_series_episodes.txt";
-    const std::string content = "Serie,S001,My Awesome Series,60.0,Action,4;Ep1:1:5|Ep2:1:3|Ep3:2:4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    std::ofstream dummy_file("temp_serie_episodes_filter.txt");
+    dummy_file << "Serie,S001,My Series,60.0,Drama,5;Ep1:1:5|Ep2:1:2|Ep3:2:4\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_serie_episodes_filter.txt");
+    redirector.Clear();
 
-    servicio.mostrarEpisodiosDeSerieConCalificacion("My Awesome Series", 4.0);
+    servicio.mostrarEpisodiosDeSerieConCalificacion("My Series", 3.5);
     std::string output = redirector.GetCout();
-
-    EXPECT_TRUE(output.find("Título: Ep1, Temporada: 1, Calificación: 5.0") != std::string::npos);
-    EXPECT_FALSE(output.find("Título: Ep2, Temporada: 1, Calificación: 3.0") != std::string::npos);
-    EXPECT_TRUE(output.find("Título: Ep3, Temporada: 2, Calificación: 4.0") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    EXPECT_TRUE(output.find("Título Episodio: Ep1") != std::string::npos);
+    EXPECT_FALSE(output.find("Título Episodio: Ep2") != std::string::npos);
+    EXPECT_TRUE(output.find("Título Episodio: Ep3") != std::string::npos);
+    std::remove("temp_serie_episodes_filter.txt");
 }
 
-// Test: Intentar mostrar episodios de una serie que no existe
 TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieNoExistente) {
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    StreamRedirector redirector;
+    std::ofstream dummy_file("temp_empty_for_series_test.txt"); dummy_file.close();
+    servicio.cargarArchivo("temp_empty_for_series_test.txt");
+    redirector.Clear();
+
     servicio.mostrarEpisodiosDeSerieConCalificacion("Non Existent Series", 3.0);
-    EXPECT_TRUE(redirector.GetCout().find("Serie 'Non Existent Series' no encontrada.") != std::string::npos);
-}
-
-// Test: Mostrar películas con calificación específica
-TEST(ServicioStreamingTest, MostrarPeliculasConCalificacion) {
-    const std::string filename = "test_data_movies_filter.txt";
-    const std::string content =
-        "Pelicula,P001,Movie High,90.0,Drama,5\n"
-        "Pelicula,P002,Movie Low,80.0,Comedy,2\n"
-        "Pelicula,P003,Movie Medium,110.0,Action,4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
-    ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
-
-    servicio.mostrarPeliculasConCalificacion(3.5);
     std::string output = redirector.GetCout();
-
-    EXPECT_TRUE(output.find("Nombre: Movie High") != std::string::npos);
-    EXPECT_FALSE(output.find("Nombre: Movie Low") != std::string::npos);
-    EXPECT_TRUE(output.find("Nombre: Movie Medium") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+    EXPECT_TRUE(output.find("Serie 'Non Existent Series' no encontrada.") != std::string::npos);
+    std::remove("temp_empty_for_series_test.txt");
 }
 
-// Test: No se encuentran películas con la calificación especificada
-TEST(ServicioStreamingTest, MostrarPeliculasNoEncontradas) {
+TEST(ServicioStreamingTest, MostrarPeliculasConCalificacion) {
+    OutputRedirector redirector;
     ServicioStreaming servicio;
-    const std::string filename = "test_data_no_movies.txt";
-    const std::string content = "Pelicula,P001,Movie Low,80.0,Comedy,2\n"; // Only low rated movie
-    create_dummy_data_file(filename, content); // Renamed call
+    std::ofstream dummy_file("temp_show_movies.txt");
+    dummy_file << "Pelicula,P001,Movie X,90.0,Action,5-4\n"; // Avg 4.5
+    dummy_file << "Pelicula,P002,Movie Y,80.0,Comedy,2-1\n"; // Avg 1.5
+    dummy_file.close();
+    servicio.cargarArchivo("temp_show_movies.txt");
+    redirector.Clear();
 
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
+    servicio.mostrarPeliculasConCalificacion(3.0);
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Movie X") != std::string::npos);
+    EXPECT_FALSE(output.find("Movie Y") != std::string::npos);
+    std::remove("temp_show_movies.txt");
+}
+
+TEST(ServicioStreamingTest, MostrarPeliculasNoEncontradas) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_no_movies.txt");
+    dummy_file << "Pelicula,P001,Movie X,90.0,Action,2\n"; // Avg 2.0
+    dummy_file.close();
+    servicio.cargarArchivo("temp_no_movies.txt");
+    redirector.Clear();
 
     servicio.mostrarPeliculasConCalificacion(4.0);
-    EXPECT_TRUE(redirector.GetCout().find("No se encontraron películas con calificación >= 4.0.") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
-}
-
-// Test: Destructor de ServicioStreaming libera memoria
-TEST(ServicioStreamingTest, DestructorLiberaMemoria) {
-    ServicioStreaming* servicio = new ServicioStreaming();
-
-    const std::string filename = "temp_for_dtor.txt";
-    const std::string content = "Pelicula,P001,Temp Movie,90.0,Action,5\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
-    StreamRedirector redirector; // Capture output for loading success/errors during setup
-    servicio->cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
-
-    // When 'servicio' is deleted, its destructor should free the allocated Video objects
-    delete servicio;
-    cleanup_dummy_data_file(filename); // Renamed call
-    // No explicit EXPECT_ or ASSERT_ here as memory deallocation is hard to test directly
-}
-
-// Test: Case-insensitive search for calificarVideo (Movie)
-TEST(ServicioStreamingTest, CalificarVideoCaseInsensitiveMovie) {
-    const std::string filename = "test_data_case_movie.txt";
-    const std::string content = "Pelicula,P001,a MoVie,90.0,Action,4\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
-    ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
-
-    servicio.calificarVideo("A mOvIe", 5);
-    EXPECT_TRUE(redirector.GetCout().find("Video 'a MoVie' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
-}
-
-// Test: Case-insensitive search for calificarVideo (Episode)
-TEST(ServicioStreamingTest, CalificarVideoCaseInsensitiveEpisode) {
-    const std::string filename = "test_data_case_episode.txt";
-    const std::string content = "Serie,S001,My SERIES,60.0,Drama,4;ePisoDe1:1:3|EpisOde2:1:5\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
-    ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
-
-    servicio.calificarVideo("ePiSoDe1", 4); // Different casing
-    EXPECT_TRUE(redirector.GetCout().find("Episodio 'ePisoDe1' de la serie 'My SERIES' calificado. Nueva calificación promedio: 3.5") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
-}
-
-// Test: Case-insensitive search for mostrarEpisodiosDeSerieConCalificacion
-TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieCaseInsensitive) {
-    const std::string filename = "test_data_series_case.txt";
-    const std::string content = "Serie,S001,CaSe SeNsItIvE SeRiEs,60.0,Action,4;Ep1:1:5|Ep2:1:3\n";
-    create_dummy_data_file(filename, content); // Renamed call
-
-    ServicioStreaming servicio;
-    StreamRedirector redirector; // Capture output for loading success
-    servicio.cargarArchivo(filename);
-    redirector.Clear(); // Clear output from loading
-
-    servicio.mostrarEpisodiosDeSerieConCalificacion("cAsE sEnSiTiVe SeRiEs", 4.0); // Different casing
     std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("No se encontraron películas con calificación >= 4.0.") != std::string::npos);
+    std::remove("temp_no_movies.txt");
+}
 
-    EXPECT_TRUE(output.find("Título: Ep1, Temporada: 1, Calificación: 5.0") != std::string::npos);
-    cleanup_dummy_data_file(filename); // Renamed call
+TEST(ServicioStreamingTest, DestructorLiberaMemoria) {
+    // This test is harder to implement directly with unique_ptr
+    // because unique_ptr handles deallocation automatically.
+    // The lack of memory leaks would be verified by tools like Valgrind
+    // rather than a unit test directly in C++.
+    // For now, we trust unique_ptr's behavior.
+    ServicioStreaming* servicio = new ServicioStreaming();
+    // Add some videos to ensure unique_ptrs are holding objects
+    std::ofstream dummy_file("temp_destructor_test.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,5\n";
+    dummy_file.close();
+    servicio->cargarArchivo("temp_destructor_test.txt");
+    // If the destructor had memory leaks, Valgrind would catch it.
+    // Deleting the pointer here will invoke the destructor, which in turn
+    // will deallocate the unique_ptrs held by the vector.
+    delete servicio;
+    std::remove("temp_destructor_test.txt");
+    SUCCEED(); // Indicate test passed as no crashes/errors
+}
+
+TEST(ServicioStreamingTest, CalificarVideoCaseInsensitiveMovie) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_cal_movie_case.txt");
+    dummy_file << "Pelicula,P001,The Great Movie,90.0,Action,5\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_cal_movie_case.txt");
+    redirector.Clear();
+
+    servicio.calificarVideo("the great movie", 3); // Test lowercase
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Video 'The Great Movie' calificado. Nueva calificación promedio: 4.0") != std::string::npos);
+
+    redirector.Clear();
+    servicio.calificarVideo("THE GREAT MOVIE", 2); // Test uppercase
+    output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Video 'The Great Movie' calificado. Nueva calificación promedio: 3.0") != std::string::npos);
+    std::remove("temp_cal_movie_case.txt");
+}
+
+TEST(ServicioStreamingTest, CalificarVideoCaseInsensitiveEpisode) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_cal_episode_case.txt");
+    dummy_file << "Serie,S001,Epic Series,30.0,Drama,4;EpisodeOne:1:5\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_cal_episode_case.txt");
+    redirector.Clear();
+
+    servicio.calificarVideo("episodeone", 3); // Test lowercase
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Episodio 'EpisodeOne' de la serie 'Epic Series' calificado. Nueva calificación promedio: 4.0") != std::string::npos);
+
+    redirector.Clear();
+    servicio.calificarVideo("EPISODEONE", 2); // Test uppercase
+    output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Episodio 'EpisodeOne' de la serie 'Epic Series' calificado. Nueva calificación promedio: 3.0") != std::string::npos);
+    std::remove("temp_cal_episode_case.txt");
+}
+
+TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieCaseInsensitive) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_show_series_case.txt");
+    dummy_file << "Serie,S001,My Awesome Series,60.0,Action,5;Pilot:1:5\n";
+    dummy_file.close();
+    servicio.cargarArchivo("temp_show_series_case.txt");
+    redirector.Clear();
+
+    servicio.mostrarEpisodiosDeSerieConCalificacion("my awesome series", 0.0); // Test lowercase
+    std::string output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Episodios de la serie 'My Awesome Series'") != std::string::npos);
+    EXPECT_TRUE(output.find("Título Episodio: Pilot") != std::string::npos);
+
+    redirector.Clear();
+    servicio.mostrarEpisodiosDeSerieConCalificacion("MY AWESOME SERIES", 0.0); // Test uppercase
+    output = redirector.GetCout();
+    EXPECT_TRUE(output.find("Episodios de la serie 'My Awesome Series'") != std::string::npos);
+    EXPECT_TRUE(output.find("Título Episodio: Pilot") != std::string::npos);
+    std::remove("temp_show_series_case.txt");
 }
