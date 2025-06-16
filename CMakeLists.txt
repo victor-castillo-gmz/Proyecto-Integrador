@@ -223,7 +223,3 @@ if(ENABLE_TESTING)
     endif() # END ENABLE_COVERAGE
 
 endif() # END ENABLE_TESTING"
-
-
-
-y mi sonar-project.properties
