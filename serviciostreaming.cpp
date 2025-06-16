@@ -13,12 +13,141 @@
 #include <iostream>
 #include <algorithm>
 #include <cctype>
+#include <vector>
 
-std::string ServicioStreaming::ToLower(std::string s) const {
-    std::transform(s.begin(), s.end(), s.begin(),
+// --- Métodos de Ayuda (Implementación) ---
+
+std::string ServicioStreaming::ToLower(const std::string& str) const {
+    std::string lower_str = str;
+    std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(),
                    [](unsigned char c){ return std::tolower(c); });
-    return s;
+    return lower_str;
 }
+
+void ServicioStreaming::ParseRatings(Video& video, const std::string& ratingsStr) {
+    if (ratingsStr.empty()) return;
+
+    std::stringstream ss(ratingsStr);
+    std::string rating;
+    while (std::getline(ss, rating, '-')) {
+        try {
+            int calificacion = std::stoi(rating);
+            video.Calificar(calificacion);
+        } catch (const std::invalid_argument&) {
+            std::cerr << "Advertencia: Calificacion invalida para "
+                      << (dynamic_cast<Pelicula*>(&video) ? "Pelicula" : "Serie")
+                      << " '" << video.GetNombre() << "': '" << rating << "'" << std::endl;
+        }
+    }
+}
+
+void ServicioStreaming::ParseEpisodios(Serie& serie, const std::string& episodesStr) {
+    if (episodesStr.empty()) return;
+
+    std::stringstream ss(episodesStr);
+    std::string episodeData;
+    while (std::getline(ss, episodeData, '|')) {
+        std::stringstream ep_ss(episodeData);
+        std::string titulo, temporada_str, ratings_str;
+
+        if (std::getline(ep_ss, titulo, ':') &&
+            std::getline(ep_ss, temporada_str, ':') &&
+            std::getline(ep_ss, ratings_str))
+        {
+            try {
+                int temporada = std::stoi(temporada_str);
+                Episodio ep(titulo, temporada);
+                
+                std::stringstream rating_ss(ratings_str);
+                std::string rating_val;
+                while(std::getline(rating_ss, rating_val, '-')) {
+                    ep.Calificar(std::stoi(rating_val));
+                }
+                serie.AgregarEpisodio(ep);
+            } catch (const std::exception&) {
+                std::cerr << "Advertencia: Temporada invalida para episodio '" << titulo
+                          << "' en '" << serie.GetNombre() << "': '" << temporada_str << "'" << std::endl;
+            }
+        }
+    }
+}
+
+
+void ServicioStreaming::ParsePeliculaLine(const std::string& line) {
+    std::stringstream ss(line);
+    std::string id, nombre, genero, ratingsStr;
+    std::string duracionStr;
+    double duracion = 0.0;
+
+    std::getline(ss, id, ',');
+    std::getline(ss, nombre, ',');
+    std::getline(ss, duracionStr, ',');
+    std::getline(ss, genero, ',');
+    std::getline(ss, ratingsStr);
+
+    try {
+        duracion = std::stod(duracionStr);
+    } catch (const std::invalid_argument&) {
+        std::cerr << "Advertencia: Duracion invalida en la linea: " << line << std::endl;
+        return;
+    }
+
+    auto pelicula = std::make_unique<Pelicula>(id, nombre, duracion, genero);
+    ParseRatings(*pelicula, ratingsStr);
+    videos.push_back(std::move(pelicula));
+}
+
+void ServicioStreaming::ParseSerieLine(const std::string& line) {
+    std::stringstream ss(line);
+    std::string id, nombre, genero, seriesData, episodesStr;
+    std::string duracionStr, ratingsStr;
+    double duracion = 0.0;
+
+    std::getline(ss, id, ',');
+    std::getline(ss, nombre, ',');
+    std::getline(ss, duracionStr, ',');
+    std::getline(ss, genero, ',');
+    
+    // El resto es una mezcla de calificaciones de series y episodios
+    std::string restOfLine;
+    std::getline(ss, restOfLine);
+    
+    size_t semicolonPos = restOfLine.find(';');
+    if (semicolonPos != std::string::npos) {
+        ratingsStr = restOfLine.substr(0, semicolonPos);
+        episodesStr = restOfLine.substr(semicolonPos + 1);
+    } else {
+        ratingsStr = restOfLine;
+    }
+    
+    try {
+        duracion = std::stod(duracionStr);
+    } catch (const std::invalid_argument&) {
+        // La duración es menos crítica para una serie, podemos asumir 0.
+        duracion = 0.0;
+    }
+
+    auto serie = std::make_unique<Serie>(id, nombre, duracion, genero);
+    ParseRatings(*serie, ratingsStr);
+    ParseEpisodios(*serie, episodesStr);
+    videos.push_back(std::move(serie));
+}
+
+void ServicioStreaming::IndexarContenido() {
+    videosPorTituloLower.clear();
+    episodiosPorTituloLower.clear();
+
+    for (const auto& video : videos) {
+        videosPorTituloLower[ToLower(video->GetNombre())] = video.get();
+        if (Serie* serie = dynamic_cast<Serie*>(video.get())) {
+            for (auto& episodio : serie->GetEpisodiosMutables()) {
+                episodiosPorTituloLower[ToLower(episodio.GetTitulo())] = &episodio;
+            }
+        }
+    }
+}
+
+// --- Métodos Públicos (Implementación) ---
 
 void ServicioStreaming::CargarArchivo(const std::string& nombreArchivo) {
     std::ifstream archivo(nombreArchivo);
@@ -28,160 +157,50 @@ void ServicioStreaming::CargarArchivo(const std::string& nombreArchivo) {
     }
 
     videos.clear();
-    videosPorId.clear();
-    episodiosPorTitulo.clear();
-
     std::string linea;
     while (std::getline(archivo, linea)) {
-        ParseLine(linea);
-    }
+        std::stringstream ss(linea);
+        std::string tipo;
+        std::getline(ss, tipo, ',');
 
-    archivo.close();
-    IndexVideos(); // Crear índices para búsquedas rápidas
-    std::cout << "Archivo '" << nombreArchivo << "' cargado exitosamente." << std::endl;
-}
+        std::string restoDeLinea;
+        std::getline(ss, restoDeLinea);
 
-void ServicioStreaming::ParseLine(const std::string& linea) {
-    std::stringstream ss(linea);
-    char tipo;
-    ss >> tipo;
-    ss.ignore(); 
-
-    switch (tipo) {
-        case 'M':
-            ParseMovie(ss);
-            break;
-        case 'S':
-            ParseSeries(ss);
-            break;
-        case 'C':
-            ParseRatings(ss);
-            break;
-        case 'E':
-            ParseEpisodes(ss);
-            break;
-        default:
-            std::cerr << "Advertencia: Tipo de linea desconocido '" << tipo << "'" << std::endl;
-            break;
-    }
-}
-
-void ServicioStreaming::ParseMovie(std::stringstream& ss) {
-    std::string id, nombre, genero;
-    double duracion;
-    std::getline(ss, id, ',');
-    std::getline(ss, nombre, ',');
-    ss >> duracion;
-    ss.ignore();
-    std::getline(ss, genero);
-    videos.push_back(std::make_unique<Pelicula>(id, nombre, duracion, genero));
-}
-
-void ServicioStreaming::ParseSeries(std::stringstream& ss) {
-    std::string id, nombre, genero;
-    double duracion_placeholder = 0; // Duración no es relevante para el objeto Serie en sí
-    std::getline(ss, id, ',');
-    std::getline(ss, nombre, ',');
-    std::getline(ss, genero);
-    videos.push_back(std::make_unique<Serie>(id, nombre, duracion_placeholder, genero));
-}
-
-void ServicioStreaming::ParseRatings(std::stringstream& ss) {
-    std::string id;
-    int calificacion;
-    std::getline(ss, id, ',');
-
-    // Reconstruir el mapa si es necesario (primera vez que se carga)
-    if (videosPorId.empty()) {
-        for (const auto& v : videos) {
-            videosPorId[v->GetId()] = v.get();
-        }
-    }
-    
-    auto it = videosPorId.find(id);
-    if (it != videosPorId.end()) {
-        while (ss >> calificacion) {
-            it->second->Calificar(calificacion);
-            if (ss.peek() == ',') {
-                ss.ignore();
-            }
-        }
-    } else {
-        std::cerr << "Advertencia: ID de video no encontrado para calificacion: " << id << std::endl;
-    }
-}
-
-void ServicioStreaming::ParseEpisodes(std::stringstream& ss) {
-    std::string serieId, tituloEpisodio;
-    int temporada;
-    std::getline(ss, serieId, ',');
-    std::getline(ss, tituloEpisodio, ',');
-    ss >> temporada;
-    
-    auto it = videosPorId.find(serieId);
-    if (it != videosPorId.end()) {
-        Serie* serie = dynamic_cast<Serie*>(it->second);
-        if (serie) {
-            serie->AgregarEpisodio(Episodio(tituloEpisodio, temporada));
+        if (tipo == "Pelicula") {
+            ParsePeliculaLine(restoDeLinea);
+        } else if (tipo == "Serie") {
+            ParseSerieLine(restoDeLinea);
         } else {
-            std::cerr << "Advertencia: ID '" << serieId << "' no corresponde a una serie." << std::endl;
-        }
-    } else {
-        std::cerr << "Advertencia: ID de serie no encontrado para episodio: " << serieId << std::endl;
-    }
-}
-
-void ServicioStreaming::IndexVideos() {
-    videosPorId.clear();
-    episodiosPorTitulo.clear();
-    for (auto& video : videos) {
-        videosPorId[video->GetId()] = video.get();
-        Serie* serie = dynamic_cast<Serie*>(video.get());
-        if (serie) {
-            for (auto& episodio : serie->GetEpisodiosMutables()) {
-                episodiosPorTitulo[ToLower(episodio.GetTitulo())] = &episodio;
-            }
+             std::cerr << "Advertencia: Tipo de video desconocido '" << tipo << "'" << std::endl;
         }
     }
+    IndexarContenido();
+    std::cout << "Datos cargados exitosamente. Total de videos: " << videos.size() << std::endl;
 }
 
 void ServicioStreaming::CalificarVideo(const std::string& titulo, int calificacion) {
     std::string tituloLower = ToLower(titulo);
-    bool encontrado = false;
 
-    // Buscar en episodios
-    auto itEp = episodiosPorTitulo.find(tituloLower);
-    if (itEp != episodiosPorTitulo.end()) {
-        itEp->second->Calificar(calificacion);
-        std::cout << "Episodio '" << itEp->second->GetTitulo() << "' calificado con " << calificacion << "." << std::endl;
-        encontrado = true;
+    auto it_ep = episodiosPorTituloLower.find(tituloLower);
+    if (it_ep != episodiosPorTituloLower.end()) {
+        it_ep->second->Calificar(calificacion);
+        std::cout << "Episodio '" << it_ep->second->GetTitulo() << "' calificado. Nueva calificacion promedio: " << std::fixed << std::setprecision(1) << it_ep->second->GetCalificacionPromedio() << std::endl;
+        return;
     }
 
-    // Buscar en videos (películas y series) si no se encontró como episodio
-    if (!encontrado) {
-        for (const auto& video : videos) {
-            if (ToLower(video->GetNombre()) == tituloLower) {
-                video->Calificar(calificacion);
-                std::cout << "Video '" << video->GetNombre() << "' calificado con " << calificacion << "." << std::endl;
-                encontrado = true;
-                break; 
-            }
-        }
+    auto it_vid = videosPorTituloLower.find(tituloLower);
+    if (it_vid != videosPorTituloLower.end()) {
+        it_vid->second->Calificar(calificacion);
+        std::cout << "Video '" << it_vid->second->GetNombre() << "' calificado. Nueva calificacion promedio: " << std::fixed << std::setprecision(1) << it_vid->second->GetCalificacionPromedio() << std::endl;
+        return;
     }
 
-    if (!encontrado) {
-        std::cout << "Video o episodio con titulo '" << titulo << "' no encontrado." << std::endl;
-    }
+    std::cout << "Video o episodio '" << titulo << "' no encontrado." << std::endl;
 }
 
-void ServicioStreaming::MostrarVideosPorCalificacionOGenero(double calificacionMinima, const std::string& genero) {
-    std::cout << "\n--- Mostrando videos con calificacion >= " << calificacionMinima;
-    if (!genero.empty()) {
-        std::cout << " y genero '" << genero << "'";
-    }
-    std::cout << " ---\n" << std::endl;
 
-    bool encontrado = false;
+void ServicioStreaming::MostrarVideosPorCalificacionOGenero(double calificacionMinima, const std::string& genero) {
+    bool found = false;
     std::string generoLower = ToLower(genero);
 
     for (const auto& video : videos) {
@@ -191,44 +210,36 @@ void ServicioStreaming::MostrarVideosPorCalificacionOGenero(double calificacionM
         if (calificacionOk && generoOk) {
             video->MostrarDatos();
             std::cout << "--------------------" << std::endl;
-            encontrado = true;
+            found = true;
         }
     }
-
-    if (!encontrado) {
-        std::cout << "No se encontraron videos que coincidan con los criterios." << std::endl;
+    if (!found) {
+        std::cout << "No se encontraron videos con los criterios especificados." << std::endl;
     }
 }
 
 void ServicioStreaming::MostrarEpisodiosDeSerieConCalificacion(const std::string& tituloSerie, double calificacionMinima) {
-    std::string tituloLower = ToLower(tituloSerie);
-    bool serieEncontrada = false;
-
-    for (const auto& video : videos) {
-        Serie* serie = dynamic_cast<Serie*>(video.get());
-        if (serie && ToLower(serie->GetNombre()) == tituloLower) {
+    auto it = videosPorTituloLower.find(ToLower(tituloSerie));
+    if (it != videosPorTituloLower.end()) {
+        if (Serie* serie = dynamic_cast<Serie*>(it->second)) {
+            std::cout << "Episodios de la serie '" << serie->GetNombre() << "' con calificacion >= " << calificacionMinima << ":" << std::endl;
             serie->MostrarEpisodiosConCalificacion(calificacionMinima);
-            serieEncontrada = true;
-            break;
+            return;
         }
     }
-
-    if (!serieEncontrada) {
-        std::cout << "Serie con titulo '" << tituloSerie << "' no encontrada." << std::endl;
-    }
+    std::cout << "Serie '" << tituloSerie << "' no encontrada." << std::endl;
 }
 
 void ServicioStreaming::MostrarPeliculasConCalificacion(double calificacionMinima) {
-    std::cout << "\n--- Mostrando peliculas con calificacion >= " << calificacionMinima << " ---\n" << std::endl;
-    bool encontrado = false;
+    bool found = false;
     for (const auto& video : videos) {
         if (dynamic_cast<Pelicula*>(video.get()) && video->GetCalificacionPromedio() >= calificacionMinima) {
             video->MostrarDatos();
             std::cout << "--------------------" << std::endl;
-            encontrado = true;
+            found = true;
         }
     }
-    if (!encontrado) {
-        std::cout << "No se encontraron peliculas con esa calificacion." << std::endl;
+    if (!found) {
+        std::cout << "No se encontraron peliculas con calificacion >= " << std::fixed << std::setprecision(1) << calificacionMinima << "." << std::endl;
     }
 }

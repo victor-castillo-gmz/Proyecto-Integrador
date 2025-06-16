@@ -18,35 +18,26 @@
 /**
  * @class ServicioStreaming
  * @brief Gestiona el catálogo de videos y las interacciones del usuario.
- *
- * Esta clase se encarga de cargar datos desde archivos, almacenar videos
- * (películas y series), y proporcionar métodos para buscar, filtrar y calificar
- * el contenido.
  */
 class ServicioStreaming {
 private:
     std::vector<std::unique_ptr<Video>> videos;
-    std::map<std::string, Video*> videosPorId;
-    std::map<std::string, Episodio*> episodiosPorTitulo;
+    // Mapas para búsqueda rápida y sensible a mayúsculas/minúsculas
+    std::map<std::string, Video*> videosPorTituloLower;
+    std::map<std::string, Episodio*> episodiosPorTituloLower;
 
-    // Métodos privados para refactorizar la carga de archivos
-    void ParseLine(const std::string& line);
-    void ParseMovie(std::stringstream& ss);
-    void ParseSeries(std::stringstream& ss);
-    void ParseRatings(std::stringstream& ss);
-    void ParseEpisodes(std::stringstream& ss);
-    void IndexVideos();
-    std::string ToLower(std::string s) const;
+    // --- Métodos de Ayuda para Parseo ---
+    void ParsePeliculaLine(const std::string& line);
+    void ParseSerieLine(const std::string& line);
+    void ParseRatings(Video& video, const std::string& ratingsStr);
+    void ParseEpisodios(Serie& serie, const std::string& episodesStr);
+
+    // Método de utilidad
+    std::string ToLower(const std::string& str) const;
+    void IndexarContenido();
 
 public:
-    /**
-     * @brief Constructor de ServicioStreaming.
-     */
     ServicioStreaming() = default;
-
-    /**
-     * @brief Destructor. Limpia la memoria de los videos.
-     */
     ~ServicioStreaming() = default;
 
     /**
@@ -57,7 +48,7 @@ public:
 
     /**
      * @brief Permite al usuario calificar un video o un episodio por su título.
-     * @param titulo El título del video o episodio a calificar.
+     * @param titulo El título (no sensible a mayúsculas/minúsculas) a calificar.
      * @param calificacion La calificación a asignar (1-5).
      */
     void CalificarVideo(const std::string& titulo, int calificacion);
@@ -65,13 +56,13 @@ public:
     /**
      * @brief Muestra videos filtrados por calificación y/o género.
      * @param calificacionMinima La calificación mínima requerida.
-     * @param genero El género para filtrar (dejar vacío para no filtrar por género).
+     * @param genero El género para filtrar (no sensible a mayúsculas/minúsculas).
      */
     void MostrarVideosPorCalificacionOGenero(double calificacionMinima, const std::string& genero);
 
     /**
      * @brief Muestra los episodios de una serie que cumplen con una calificación mínima.
-     * @param tituloSerie El título de la serie a buscar.
+     * @param tituloSerie El título de la serie a buscar (no sensible a mayúsculas/minúsculas).
      * @param calificacionMinima La calificación mínima para los episodios.
      */
     void MostrarEpisodiosDeSerieConCalificacion(const std::string& tituloSerie, double calificacionMinima);
