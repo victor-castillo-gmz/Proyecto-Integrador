@@ -1,92 +1,183 @@
 name: Build and Test Workflow
 
+
+
 on:
+
   push:
+
     branches:
+
       - main
+
   pull_request:
+
     branches:
+
       - main
+
+
 
 jobs:
+
   tests:
+
     name: Run Unit Tests
+
     runs-on: ubuntu-latest
+
     steps:
+
       - uses: actions/checkout@v4
+
+
 
       - name: Install dependencies
+
         run: |
+
           sudo apt-get update
+
           sudo apt-get install -y cmake build-essential lcov gcovr git
 
+
+
       - name: List Project Files for Debugging
+
         run: |
+
           echo "Listing files in the repository root directory:"
+
           ls -F
+
           echo ""
+
           echo "Listing files recursively from the repository root:"
+
           ls -RF
+
           echo ""
+
           echo "Current working directory: $(pwd)"
 
+
+
       - name: Configure Build System
+
         run: |
+
           mkdir -p build
+
           cd build
+
           cmake -DENABLE_COVERAGE=ON -DENABLE_TESTING=ON ..
 
+
+
       - name: Build Project
+
         run: |
+
           cd build
+
           cmake --build .
 
+
+
       - name: Run Unit Tests
+
         run: |
+
           cd build
+
           ctest --output-on-failure
 
+
+
       - name: Generate SonarQube Coverage Report
+
         run: |
+
           cd build
+
           cmake --build . --target sonarqube_coverage_xml
 
+
+
       - name: Upload Coverage Report
+
         uses: actions/upload-artifact@v4
+
         with:
+
           name: coverage-report
+
           path: build/coverage.xml
 
+
+
   build_analysis:
+
     name: Build and Analyze
+
     runs-on: ubuntu-latest
+
     needs: tests
 
+
+
     steps:
+
       - uses: actions/checkout@v4
+
         with:
+
           fetch-depth: 0
 
+
+
       - name: Download Coverage Report
+
         uses: actions/download-artifact@v4
+
         with:
+
           name: coverage-report
+
           path: build/
 
+
+
       - name: Run SonarQube Scan
+
         uses: sonarsource/sonarqube-scan-action@v3
+
         env:
+
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
         with:
+
           # IMPORTANT: Use `args: >` again, BUT ABSOLUTELY NO QUOTES and NO COMMENTS
+
           # Make sure there are NO leading/trailing spaces on these lines.
+
           args: >
+
             -Dsonar.cfamily.compile-commands=build/compile_commands.json
+
             -Dsonar.cfamily.reportPaths=build/coverage.xml
 
+
+
       - name: Check SonarQube Quality Gate
+
         uses: sonarsource/sonarqube-quality-gate-action@master
+
         timeout-minutes: 5
+
         env:
+
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
