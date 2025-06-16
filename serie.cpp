@@ -1,11 +1,17 @@
 #include "serie.h"
-#include <iostream> // Necesario para std::cout
-#include <iomanip>  // Necesario para std::fixed y std::setprecision
+#include <iostream>
+#include <iomanip> // Necesario para std::fixed y std::setprecision
 
 // Constructor
 Serie::Serie(const std::string& id, const std::string& nombre, double duracion, const std::string& genero)
     : Video(id, nombre, duracion, genero) {
     // Los episodios se agregan después
+}
+
+// Destructor
+Serie::~Serie() {
+    // No es necesario liberar memoria de episodios aquí si Episodio no usa punteros
+    // y los episodios se manejan por valor en el vector.
 }
 
 // Método para agregar un episodio
@@ -19,7 +25,7 @@ void Serie::calificarEpisodio(const std::string& tituloEpisodio, int calificacio
     for (Episodio& ep : episodios) {
         if (ep.getTitulo() == tituloEpisodio) {
             ep.calificar(calificacion);
-            std::cout << "Episodio '" << tituloEpisodio << "' calificado. Nueva calificación promedio: " 
+            std::cout << "Episodio '" << tituloEpisodio << "' calificado. Nueva calificación promedio: "
                       << std::fixed << std::setprecision(1) << ep.getCalificacionPromedio() << std::endl;
             found = true;
             break;
@@ -51,12 +57,12 @@ void Serie::mostrarEpisodios() const {
     }
 }
 
-// Método para mostrar episodios con una calificación mínima (MODIFICADO)
+// Método para mostrar episodios con una calificación mínima
 void Serie::mostrarEpisodiosConCalificacion(double calificacionMinima) const {
     bool found_matching_episode = false; // Flag to track if any episode meets criteria
-    std::cout << "Episodios de '" << getNombre() << "' con calificación >= " 
+    std::cout << "Episodios de '" << getNombre() << "' con calificación >= "
               << std::fixed << std::setprecision(1) << calificacionMinima << ":" << std::endl;
-    
+
     for (const Episodio& ep : episodios) {
         if (ep.getCalificacionPromedio() >= calificacionMinima) {
             std::cout << "  - Título: " << ep.getTitulo()
@@ -65,15 +71,9 @@ void Serie::mostrarEpisodiosConCalificacion(double calificacionMinima) const {
             found_matching_episode = true;
         }
     }
-    
-    // Add this block:
+
+    // MODIFICACION APLICADA: Asegurarse que esta cadena coincida EXACTAMENTE con el test.
     if (!found_matching_episode) {
         std::cout << "No se encontraron episodios con esa calificación." << std::endl;
     }
-}
-
-// Destructor
-Serie::~Serie() {
-    // No es necesario liberar memoria de episodios aquí si Episodio no usa punteros
-    // y los episodios se manejan por valor en el vector.
 }
