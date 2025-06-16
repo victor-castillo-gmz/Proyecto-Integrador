@@ -31,8 +31,10 @@ void ServicioStreaming::ParseRatings(Video& video, const std::string& ratingsStr
     std::string rating;
     while (std::getline(ss, rating, '-')) {
         try {
-            int calificacion = std::stoi(rating);
-            video.Calificar(calificacion);
+            if (!rating.empty()) { // Ignorar segmentos vacíos (ej. 5--4)
+                int calificacion = std::stoi(rating);
+                video.Calificar(calificacion);
+            }
         } catch (const std::invalid_argument&) {
             std::cerr << "Advertencia: Calificacion invalida para "
                       << (dynamic_cast<Pelicula*>(&video) ? "Pelicula" : "Serie")
@@ -50,35 +52,36 @@ void ServicioStreaming::ParseEpisodios(Serie& serie, const std::string& episodes
         std::stringstream ep_ss(episodeData);
         std::string titulo, temporada_str, ratings_str;
 
-        if (std::getline(ep_ss, titulo, ':') &&
-            std::getline(ep_ss, temporada_str, ':') &&
-            std::getline(ep_ss, ratings_str))
+        // *** INICIO DE LA CORRECCIÓN ***
+        // Se relaja la condición: solo se requiere título y temporada.
+        // Las calificaciones son opcionales.
+        if (std::getline(ep_ss, titulo, ':') && std::getline(ep_ss, temporada_str, ':'))
         {
+            // Se lee el resto de la línea para las calificaciones, sin verificar el éxito.
+            std::getline(ep_ss, ratings_str);
+            
             try {
                 int temporada = std::stoi(temporada_str);
                 Episodio ep(titulo, temporada);
                 
-                // *** INICIO DE LA CORRECCIÓN ***
-                // El manejo de errores ahora está dentro del bucle de calificaciones.
                 std::stringstream rating_ss(ratings_str);
                 std::string rating_val;
                 while(std::getline(rating_ss, rating_val, '-')) {
                     try {
-                        ep.Calificar(std::stoi(rating_val));
+                        if (!rating_val.empty()) {
+                           ep.Calificar(std::stoi(rating_val));
+                        }
                     } catch (const std::invalid_argument&) {
-                        // Ignora la calificación inválida y continúa con la siguiente.
-                        // Opcional: mostrar una advertencia.
-                        // std::cerr << "Advertencia: Calificacion de episodio invalida '" << rating_val << "' para '" << titulo << "'" << std::endl;
+                        // Ignora la calificación inválida y continúa
                     }
                 }
-                // *** FIN DE LA CORRECCIÓN ***
-
                 serie.AgregarEpisodio(ep);
             } catch (const std::invalid_argument&) {
                 std::cerr << "Advertencia: Temporada invalida para episodio '" << titulo
                           << "' en '" << serie.GetNombre() << "': '" << temporada_str << "'" << std::endl;
             }
         }
+        // *** FIN DE LA CORRECCIÓN ***
     }
 }
 
@@ -167,7 +170,7 @@ void ServicioStreaming::CargarArchivo(const std::string& nombreArchivo) {
     videos.clear();
     std::string linea;
     while (std::getline(archivo, linea)) {
-        if (linea.empty()) { // Ignorar líneas vacías
+        if (linea.empty() || linea == "\r") { // Ignorar líneas vacías
             continue;
         }
 
