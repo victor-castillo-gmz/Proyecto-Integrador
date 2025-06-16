@@ -58,13 +58,23 @@ void ServicioStreaming::ParseEpisodios(Serie& serie, const std::string& episodes
                 int temporada = std::stoi(temporada_str);
                 Episodio ep(titulo, temporada);
                 
+                // *** INICIO DE LA CORRECCIÓN ***
+                // El manejo de errores ahora está dentro del bucle de calificaciones.
                 std::stringstream rating_ss(ratings_str);
                 std::string rating_val;
                 while(std::getline(rating_ss, rating_val, '-')) {
-                    ep.Calificar(std::stoi(rating_val));
+                    try {
+                        ep.Calificar(std::stoi(rating_val));
+                    } catch (const std::invalid_argument&) {
+                        // Ignora la calificación inválida y continúa con la siguiente.
+                        // Opcional: mostrar una advertencia.
+                        // std::cerr << "Advertencia: Calificacion de episodio invalida '" << rating_val << "' para '" << titulo << "'" << std::endl;
+                    }
                 }
+                // *** FIN DE LA CORRECCIÓN ***
+
                 serie.AgregarEpisodio(ep);
-            } catch (const std::exception&) {
+            } catch (const std::invalid_argument&) {
                 std::cerr << "Advertencia: Temporada invalida para episodio '" << titulo
                           << "' en '" << serie.GetNombre() << "': '" << temporada_str << "'" << std::endl;
             }
@@ -88,7 +98,7 @@ void ServicioStreaming::ParsePeliculaLine(const std::string& line) {
     try {
         duracion = std::stod(duracionStr);
     } catch (const std::invalid_argument&) {
-        std::cerr << "Advertencia: Duracion invalida en la linea: " << line << std::endl;
+        std::cerr << "Advertencia: Duracion invalida en la linea: Pelicula," << line << std::endl;
         return;
     }
 
@@ -108,7 +118,6 @@ void ServicioStreaming::ParseSerieLine(const std::string& line) {
     std::getline(ss, duracionStr, ',');
     std::getline(ss, genero, ',');
     
-    // El resto es una mezcla de calificaciones de series y episodios
     std::string restOfLine;
     std::getline(ss, restOfLine);
     
@@ -123,7 +132,6 @@ void ServicioStreaming::ParseSerieLine(const std::string& line) {
     try {
         duracion = std::stod(duracionStr);
     } catch (const std::invalid_argument&) {
-        // La duración es menos crítica para una serie, podemos asumir 0.
         duracion = 0.0;
     }
 
@@ -159,6 +167,10 @@ void ServicioStreaming::CargarArchivo(const std::string& nombreArchivo) {
     videos.clear();
     std::string linea;
     while (std::getline(archivo, linea)) {
+        if (linea.empty()) { // Ignorar líneas vacías
+            continue;
+        }
+
         std::stringstream ss(linea);
         std::string tipo;
         std::getline(ss, tipo, ',');
