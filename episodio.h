@@ -1,37 +1,29 @@
 #ifndef EPISODIO_H
 #define EPISODIO_H
 
-#include <iostream>
 #include <string>
 #include <vector>
-#include <numeric>
-#include <iomanip>
+#include <numeric> // For std::accumulate
+#include <iostream> // For std::cout
+#include <iomanip>  // For std::fixed, std::setprecision
 
 class Episodio {
 private:
     std::string titulo;
     int temporada;
     std::vector<int> calificaciones;
-    double calificacionPromedio;
 
 public:
-    // Constructor
-    Episodio(std::string titulo, int temporada);
-
-    // Method to add a rating to the episode
-    void calificar(int valor);
-
-    // Calculate and update the average rating
-    void calcularPromedio();
-
-    // Display episode details
-    void mostrarDatos() const;
+    Episodio(const std::string& titulo, int temporada);
 
     // Getters
-    std::string getTitulo() const { return titulo; }
-    int getTemporada() const { return temporada; }
-    double getCalificacionPromedio() const { return calificacionPromedio; }
-    const std::vector<int>& getCalificaciones() const { return calificaciones; } // For saving or accessing
+    std::string getTitulo() const;
+    int getTemporada() const;
+    double getCalificacionPromedio() const;
+
+    void calificar(int calificacion);
+
+    void mostrarDatos() const;
 };
 
 #endif // EPISODIO_H

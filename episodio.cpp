@@ -1,31 +1,38 @@
 #include "episodio.h"
+#include <numeric> // For std::accumulate
+#include <iostream>
+#include <iomanip> // For std::fixed, std::setprecision
 
-// Constructor
-Episodio::Episodio(std::string titulo, int temporada)
-    : titulo(titulo), temporada(temporada), calificacionPromedio(0.0) {}
+Episodio::Episodio(const std::string& titulo, int temporada)
+    : titulo(titulo), temporada(temporada) {}
 
-// Method to add a rating to the episode
-void Episodio::calificar(int valor) {
-    if (valor >= 1 && valor <= 5) {
-        calificaciones.push_back(valor);
-        calcularPromedio();
+std::string Episodio::getTitulo() const {
+    return titulo;
+}
+
+int Episodio::getTemporada() const {
+    return temporada;
+}
+
+double Episodio::getCalificacionPromedio() const {
+    if (calificaciones.empty()) {
+        return 0.0;
+    }
+    double sum = std::accumulate(calificaciones.begin(), calificaciones.end(), 0.0);
+    return sum / calificaciones.size();
+}
+
+void Episodio::calificar(int calificacion) {
+    if (calificacion >= 1 && calificacion <= 5) {
+        calificaciones.push_back(calificacion);
     } else {
-        std::cout << "Calificación de episodio inválida. Debe ser de 1 a 5." << std::endl;
+        // No error output here, as ServicioStreaming::parseEpisodios handles the warnings
     }
 }
 
-// Calculate and update the average rating
-void Episodio::calcularPromedio() {
-    if (!calificaciones.empty()) {
-        double sum = std::accumulate(calificaciones.begin(), calificaciones.end(), 0.0);
-        calificacionPromedio = sum / calificaciones.size();
-    } else {
-        calificacionPromedio = 0.0;
-    }
-}
-
-// Display episode details
 void Episodio::mostrarDatos() const {
-    std::cout << "    - Título: " << titulo << ", Temporada: " << temporada
-              << ", Calificación: " << std::fixed << std::setprecision(1) << calificacionPromedio << std::endl;
+    std::cout << "    - Título Episodio: " << titulo << std::endl;
+    std::cout << "      Temporada: " << temporada << std::endl;
+    // Ensure consistent floating-point output for tests
+    std::cout << "      Calificación promedio: " << std::fixed << std::setprecision(1) << getCalificacionPromedio() << std::endl;
 }

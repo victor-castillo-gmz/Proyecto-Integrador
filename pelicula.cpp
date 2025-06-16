@@ -1,12 +1,11 @@
 #include "pelicula.h"
+#include <iostream>
+#include <iomanip> // Already included via video.h, but good to be explicit if needed
 
-// Constructor
-Pelicula::Pelicula(std::string id, std::string nombre, double duracion, std::string genero)
-    : Video(id, nombre, duracion, genero) {} // Call base class constructor
+Pelicula::Pelicula(const std::string& id, const std::string& nombre, double duracion, const std::string& genero)
+    : Video(id, nombre, duracion, genero) {}
 
-// Override the virtual mostrarDatos() from Video
 void Pelicula::mostrarDatos() const {
-    std::cout << "--- Película ---\n";
-    imprimirInfoBase(); // Use the helper from Video
-    std::cout << "----------------\n";
+    std::cout << "Tipo: Película" << std::endl;
+    imprimirInfoBase(); // Reuses the base class's info printing
 }
