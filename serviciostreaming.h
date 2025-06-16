@@ -32,10 +32,6 @@ public:
     void mostrarEpisodiosDeSerieConCalificacion(const std::string& nombreSerie, double calificacionMinima);
     void mostrarPeliculasConCalificacion(double calificacionMinima);
     void calificarVideo(const std::string& tituloVideo, int calificacion);
-
-    // <<< NUEVA FUNCIÓN PARA PRUEBAS UNITARIAS >>>
-    // Getter para acceder a los videos y verificar el estado interno en las pruebas.
-    const std::vector<Video*>& getVideos() const { return videos; }
 };
 
 #endif // SERVICIOSTREAMING_H
