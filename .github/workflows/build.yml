@@ -13,17 +13,13 @@ jobs:
     name: Run Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # 1. Clone the repository
+      - uses: actions/checkout@v4
 
-      # 2. Install necessary dependencies
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential lcov gcovr git # lcov and gcovr for coverage
+          sudo apt-get install -y cmake build-essential lcov gcovr git
 
-      # (No longer need to manually install Google Test thanks to FetchContent in CMake)
-
-      # 3. DEBUGGING STEP (Keep for diagnosis if needed)
       - name: List Project Files for Debugging
         run: |
           echo "Listing files in the repository root directory:"
@@ -34,61 +30,49 @@ jobs:
           echo ""
           echo "Current working directory: $(pwd)"
 
-      # 4. Create build directory and configure the project
       - name: Configure Build System
         run: |
           mkdir -p build
           cd build
-          # Pass ENABLE_COVERAGE and ENABLE_TESTING flags to CMake
           cmake -DENABLE_COVERAGE=ON -DENABLE_TESTING=ON ..
 
-      # 5. Build the project (including test executable)
       - name: Build Project
         run: |
           cd build
-          cmake --build . # This builds all targets, including StreamingServiceApp and ServicioStreamingTest
+          cmake --build .
 
-      # 6. Run Unit Tests with detailed output on failure
       - name: Run Unit Tests
         run: |
           cd build
           ctest --output-on-failure
 
-      # 7. Generate Coverage Report (SonarQube XML format)
       - name: Generate SonarQube Coverage Report
         run: |
           cd build
-          # This command triggers the 'sonarqube_coverage_xml' custom target defined in CMakeLists.txt
-          # It runs tests and then uses gcovr to create coverage.xml
           cmake --build . --target sonarqube_coverage_xml
 
-      # 8. Upload Coverage Report as an artifact
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: build/coverage.xml # This is the XML report for SonarQube
+          path: build/coverage.xml
 
   build_analysis:
     name: Build and Analyze
     runs-on: ubuntu-latest
-    needs: tests # This job runs after 'tests' completes successfully
+    needs: tests
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch full history for SonarQube analysis
+          fetch-depth: 0
 
-      # 2. Download the coverage report generated in the previous job
       - name: Download Coverage Report
         uses: actions/download-artifact@v4
         with:
           name: coverage-report
-          path: build/ # Downloads coverage.xml into the build directory
+          path: build/
 
-      # (No longer need to install Google Test specifically for SonarQube)
-
-      # 3. Run SonarQube Scan
       - name: Run SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v3
         env:
@@ -97,9 +81,8 @@ jobs:
         with:
           args: >
             -Dsonar.cfamily.compile-commands=build/compile_commands.json
-            -Dsonar.cfamily.reportPaths=build/coverage.xml # Point to the downloaded coverage XML report
+            -Dsonar.cfamily.reportPaths=build/coverage.xml # ¡Este comentario SÍ está permitido aquí!
 
-      # 4. Optional: Check Quality Gate to fail the build if standards are not met
       - name: Check SonarQube Quality Gate
         uses: sonarsource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
