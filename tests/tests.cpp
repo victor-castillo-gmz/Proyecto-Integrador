@@ -54,7 +54,6 @@ private:
 // --- Tests para la clase Video (usando Pelicula como instancia concreta) ---
 
 TEST(VideoTest, CalificacionPromedioCorrecta) {
-    // CORREGIDO: Video es abstracto, se usa Pelicula para la prueba.
     Pelicula v("V001", "Test Video", 60, "Action");
     v.Calificar(5);
     v.Calificar(4);
@@ -69,14 +68,12 @@ TEST(VideoTest, CalificacionInvalida) {
 }
 
 TEST(VideoTest, CalificacionUnica) {
-    // CORREGIDO: Se usa Pelicula
     Pelicula v("V002", "Single Rating", 30, "Comedy");
     v.Calificar(3);
     EXPECT_EQ(v.GetCalificacionPromedio(), 3.0);
 }
 
 TEST(VideoTest, CalificacionPromedioVacio) {
-    // CORREGIDO: Se usa Pelicula
     Pelicula v("V003", "No Ratings", 120, "Thriller");
     EXPECT_EQ(v.GetCalificacionPromedio(), 0.0);
 }
@@ -554,4 +551,96 @@ TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieCaseInsensitive) {
     EXPECT_NE(output.find("Episodios de la serie 'My Awesome Series'"), std::string::npos);
     EXPECT_NE(output.find("Titulo Episodio: Pilot"), std::string::npos);
     std::remove("temp_show_series_case.txt");
+}
+
+// ============================================================================================
+// ============================= NUEVAS PRUEBAS UNITARIAS =====================================
+// ============================================================================================
+
+TEST(ServicioStreamingTest, CargarArchivoConLineaVacia) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_empty_line.txt");
+    dummy_file << "Pelicula,P001,Movie A,90.0,Action,5\n";
+    dummy_file << "\n"; // Línea vacía
+    dummy_file << "Pelicula,P002,Movie B,80.0,Comedy,4\n";
+    dummy_file.close();
+
+    servicio.CargarArchivo("temp_empty_line.txt");
+    redirector.Clear();
+    
+    servicio.MostrarVideosPorCalificacionOGenero(0.0, ""); // Mostrar todo
+    std::string output = redirector.GetCout();
+
+    // Ambas películas deben haber sido cargadas, la línea vacía debe ser ignorada.
+    EXPECT_NE(output.find("Movie A"), std::string::npos);
+    EXPECT_NE(output.find("Movie B"), std::string::npos);
+
+    std::remove("temp_empty_line.txt");
+}
+
+TEST(ServicioStreamingTest, CargarSerieSinSeccionDeEpisodios) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_serie_no_episodes.txt");
+    // Formato válido, pero sin el punto y coma que indica episodios
+    dummy_file << "Serie,S999,Series without Episodes,50.0,Drama,5-4\n";
+    dummy_file.close();
+
+    servicio.CargarArchivo("temp_serie_no_episodes.txt");
+    redirector.Clear();
+
+    servicio.MostrarVideosPorCalificacionOGenero(0.0, "Drama");
+    std::string output = redirector.GetCout();
+    
+    // La serie debe cargarse con su calificación, pero indicar que no tiene episodios.
+    EXPECT_NE(output.find("Nombre: Series without Episodes"), std::string::npos);
+    EXPECT_NE(output.find("Calificacion promedio: 4.5"), std::string::npos);
+    EXPECT_NE(output.find("Esta serie no tiene episodios cargados."), std::string::npos);
+
+    std::remove("temp_serie_no_episodes.txt");
+}
+
+TEST(ServicioStreamingTest, CargarEpisodioConFormatoIncorrecto) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_malformed_episode.txt");
+    // Ep1 no tiene calificaciones, Ep2 no tiene temporada ni calificaciones
+    dummy_file << "Serie,S998,Malformed Series,45.0,Comedy,5;Ep1:1|Ep2|Ep3:2:4\n";
+    dummy_file.close();
+
+    servicio.CargarArchivo("temp_malformed_episode.txt");
+    redirector.Clear();
+    
+    servicio.MostrarEpisodiosDeSerieConCalificacion("Malformed Series", 0.0);
+    std::string output = redirector.GetCout();
+
+    // Solo Ep3, que está bien formado, debe cargarse.
+    EXPECT_EQ(output.find("Ep1"), std::string::npos);
+    EXPECT_EQ(output.find("Ep2"), std::string::npos);
+    EXPECT_NE(output.find("Ep3"), std::string::npos);
+
+    std::remove("temp_malformed_episode.txt");
+}
+
+TEST(ServicioStreamingTest, CargarEpisodioConCalificacionInvalida) {
+    OutputRedirector redirector;
+    ServicioStreaming servicio;
+    std::ofstream dummy_file("temp_invalid_ep_rating.txt");
+    // "abc" es una calificación inválida para el episodio.
+    dummy_file << "Serie,S997,Series With Bad Ep Rating,60.0,Action,5;Ep1:1:5-abc-4\n";
+    dummy_file.close();
+
+    servicio.CargarArchivo("temp_invalid_ep_rating.txt");
+    
+    // Aunque no se muestra un error específico en el log de carga para calificaciones de episodios
+    // (según el código actual), podemos verificar que solo las calificaciones válidas fueron promediadas.
+    redirector.Clear();
+    servicio.MostrarEpisodiosDeSerieConCalificacion("Series With Bad Ep Rating", 0.0);
+    std::string output = redirector.GetCout();
+    
+    // El promedio debe ser (5+4)/2 = 4.5, ignorando "abc".
+    EXPECT_NE(output.find("Calificacion promedio: 4.5"), std::string::npos);
+
+    std::remove("temp_invalid_ep_rating.txt");
 }
