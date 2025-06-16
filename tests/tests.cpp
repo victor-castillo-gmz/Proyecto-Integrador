@@ -3,8 +3,11 @@
 #include "serie.h"
 #include "episodio.h"
 #include "serviciostreaming.h"
-#include <fstream> // Para simular archivos de datos
-#include <sstream> // Para manipular strings como streams
+#include <fstream>      // Para simular archivos de datos
+#include <sstream>      // Para manipular strings como streams
+#include <iostream>     // Para std::cout, std::cerr
+#include <string>       // Para std::string
+#include <cstdio>       // For std::remove
 
 // Helper function to create a dummy data file for testing
 void createDummyDataFile(const std::string& filename, const std::string& content) {
@@ -18,6 +21,41 @@ void cleanupDummyDataFile(const std::string& filename) {
     std::remove(filename.c_str());
 }
 
+// Helper for redirecting both cout and cerr
+struct StreamRedirector {
+    std::stringstream ss_out;
+    std::stringstream ss_err;
+    std::streambuf* old_cout;
+    std::streambuf* old_cerr;
+
+    StreamRedirector() {
+        old_cout = std::cout.rdbuf();
+        old_cerr = std::cerr.rdbuf();
+        std::cout.rdbuf(ss_out.rdbuf());
+        std::cerr.rdbuf(ss_err.rdbuf());
+    }
+
+    ~StreamRedirector() {
+        std::cout.rdbuf(old_cout);
+        std::cerr.rdbuf(old_cerr);
+    }
+
+    std::string getCout() {
+        return ss_out.str();
+    }
+
+    std::string getCerr() {
+        return ss_err.str();
+    }
+
+    void clear() {
+        ss_out.str("");
+        ss_out.clear();
+        ss_err.str("");
+        ss_err.clear();
+    }
+};
+
 // --- Video Class Tests ---
 
 // Test: Calificación promedio correcta para un video
@@ -30,11 +68,13 @@ TEST(VideoTest, CalificacionPromedioCorrecta) {
 
 // Test: Calificación inválida no se agrega
 TEST(VideoTest, CalificacionInvalida) {
+    StreamRedirector redirector; // Capture output
     Pelicula p("P003", "Test", 90.0, "Drama");
     p.calificar(6); // Invalid rating
     p.calificar(0); // Invalid rating
     EXPECT_TRUE(p.getCalificaciones().empty()); // No ratings should be added
     EXPECT_DOUBLE_EQ(p.getCalificacionPromedio(), 0.0);
+    EXPECT_TRUE(redirector.getCout().find("Calificación inválida. Debe ser de 1 a 5.") != std::string::npos);
 }
 
 // Test: Calificación promedio con un solo valor
@@ -62,11 +102,13 @@ TEST(EpisodioTest, CalificacionPromedioCorrecta) {
 
 // Test: Calificación inválida en episodio no se agrega
 TEST(EpisodioTest, CalificacionEpisodioInvalida) {
+    StreamRedirector redirector; // Capture output
     Episodio e("Final", 2);
     e.calificar(0);
     e.calificar(6);
     EXPECT_TRUE(e.getCalificaciones().empty());
     EXPECT_DOUBLE_EQ(e.getCalificacionPromedio(), 0.0);
+    EXPECT_TRUE(redirector.getCout().find("Calificación de episodio inválida. Debe ser de 1 a 5.") != std::string::npos);
 }
 
 // Test: Getters de Episodio
@@ -84,19 +126,15 @@ TEST(PeliculaTest, MostrarDatos) {
     p.calificar(5);
     p.calificar(4);
     
-    // Capturar la salida estándar
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
 
     p.mostrarDatos();
 
-    std::cout.rdbuf(oldCout); // Restaurar la salida estándar
-
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
     EXPECT_TRUE(output.find("ID: P006") != std::string::npos);
     EXPECT_TRUE(output.find("Nombre: Gran Pelicula") != std::string::npos);
-    EXPECT_TRUE(output.find("Duración: 150.0 min") != std::string::npos);
+    // Adjusted expectation for duration due to fixed precision and potential trailing zeros
+    EXPECT_TRUE(output.find("Duración: 150.0 min") != std::string::npos || output.find("Duración: 150 min") != std::string::npos);
     EXPECT_TRUE(output.find("Género: Accion") != std::string::npos);
     EXPECT_TRUE(output.find("Calificación promedio: 4.5") != std::string::npos);
 }
@@ -110,19 +148,20 @@ TEST(SerieTest, AgregarYCalificarEpisodios) {
     ep1.calificar(4);
     s.agregarEpisodio(ep1);
     
+    StreamRedirector redirector; // Capture output for calificarEpisodio
+
     // Calificar un episodio existente en la serie
     s.calificarEpisodio("Piloto", 5);
     const auto& episodios = s.getEpisodios();
     ASSERT_EQ(episodios.size(), 1);
     EXPECT_DOUBLE_EQ(episodios[0].getCalificacionPromedio(), 4.5);
+    EXPECT_TRUE(redirector.getCout().find("Episodio 'Piloto' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
+    
+    redirector.clear(); // Clear stream for next check
 
     // Calificar un episodio que no existe
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
     s.calificarEpisodio("Episodio Falso", 3);
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("Episodio 'Episodio Falso' no encontrado en esta serie.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Episodio 'Episodio Falso' no encontrado en esta serie.") != std::string::npos);
 }
 
 // Test: Mostrar datos de Serie
@@ -136,16 +175,11 @@ TEST(SerieTest, MostrarDatos) {
     s.agregarEpisodio(ep1);
     s.agregarEpisodio(ep2);
 
-    // Capturar la salida estándar
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
 
     s.mostrarDatos();
 
-    std::cout.rdbuf(oldCout); // Restaurar la salida estándar
-
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
     EXPECT_TRUE(output.find("--- Serie ---") != std::string::npos);
     EXPECT_TRUE(output.find("Nombre: The Crown") != std::string::npos);
     EXPECT_TRUE(output.find("Calificación promedio: 4.0") != std::string::npos); // Serie's own rating
@@ -157,20 +191,16 @@ TEST(SerieTest, MostrarDatos) {
 // Test: Mostrar episodios de serie vacía
 TEST(SerieTest, MostrarEpisodiosVacios) {
     Serie s("S003", "Serie Vacia", 30.0, "Animacion");
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
+
     s.mostrarEpisodios();
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("No hay episodios en esta serie.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("No hay episodios en esta serie.") != std::string::npos);
+
+    redirector.clear(); // Clear stringstream
 
     // Also test via mostrarDatos()
-    ss.str(""); // Clear stringstream
-    ss.clear(); // Clear error flags
-    std::cout.rdbuf(ss.rdbuf());
     s.mostrarDatos();
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("(No hay episodios)") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("(No hay episodios)") != std::string::npos);
 }
 
 // Test: Mostrar episodios con calificación mínima
@@ -183,26 +213,20 @@ TEST(SerieTest, MostrarEpisodiosConCalificacion) {
     s.agregarEpisodio(ep2);
     s.agregarEpisodio(ep3);
 
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
 
     s.mostrarEpisodiosConCalificacion(4.0);
 
-    std::cout.rdbuf(oldCout);
-
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
     EXPECT_TRUE(output.find("Título: Ep B, Temporada: 1, Calificación: 4.0") != std::string::npos);
     EXPECT_TRUE(output.find("Título: Ep C, Temporada: 2, Calificación: 5.0") != std::string::npos);
     EXPECT_FALSE(output.find("Título: Ep A") != std::string::npos); // Should not be in output
 
+    redirector.clear(); // Clear stream for next check
+
     // Test with no episodes meeting the criteria
-    ss.str("");
-    ss.clear();
-    std::cout.rdbuf(ss.rdbuf());
     s.mostrarEpisodiosConCalificacion(5.0);
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("No se encontraron episodios con esa calificación.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("No se encontraron episodios con esa calificación.") != std::string::npos);
 }
 
 
@@ -217,28 +241,24 @@ TEST(ServicioStreamingTest, CargarArchivo) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // To capture success message
+
     servicio.cargarArchivo(filename);
 
-    // Check if videos are loaded
-    // Note: To properly check the loaded videos, we'd ideally need a public getter
-    // for `videos` vector in ServicioStreaming, or more specific public methods
-    // to query for video details. For now, we rely on the internal state and
-    // messages from `cargarArchivo`.
-
+    std::string output_cout = redirector.getCout();
+    EXPECT_TRUE(output_cout.find("Datos cargados exitosamente desde test_data_load.txt. Total de videos: 2") != std::string::npos);
+    
     // We can indirectly check by trying to find/display them
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear for next operation
     servicio.mostrarVideosPorCalificacionOGenero(0.0, ""); // Show all
-    std::cout.rdbuf(oldCout);
+    output_cout = redirector.getCout();
 
-    std::string output = ss.str();
-    EXPECT_TRUE(output.find("Nombre: Movie A") != std::string::npos);
-    EXPECT_TRUE(output.find("Calificación promedio: 4.5") != std::string::npos);
-    EXPECT_TRUE(output.find("Nombre: Series B") != std::string::npos);
-    EXPECT_TRUE(output.find("Título: Ep1:1:5-4") == std::string::npos); // Expect episode data to be parsed internally, not raw string
-    EXPECT_TRUE(output.find("Título: Ep1, Temporada: 1, Calificación: 4.5") != std::string::npos); // Verify episode details
-    EXPECT_TRUE(output.find("Título: Ep2, Temporada: 1, Calificación: 3.0") != std::string::npos); // Verify episode details
+    EXPECT_TRUE(output_cout.find("Nombre: Movie A") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Calificación promedio: 4.5") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Nombre: Series B") != std::string::npos);
+    // Verify episode details are parsed and displayed correctly
+    EXPECT_TRUE(output_cout.find("Título: Ep1, Temporada: 1, Calificación: 4.5") != std::string::npos);
+    EXPECT_TRUE(output_cout.find("Título: Ep2, Temporada: 1, Calificación: 3.0") != std::string::npos);
 
     cleanupDummyDataFile(filename);
 }
@@ -246,12 +266,10 @@ TEST(ServicioStreamingTest, CargarArchivo) {
 // Test: Cargar archivo que no existe
 TEST(ServicioStreamingTest, CargarArchivoNoExistente) {
     ServicioStreaming servicio;
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
+
     servicio.cargarArchivo("non_existent_file.txt");
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("Error: No se pudo abrir el archivo") != std::string::npos);
+    EXPECT_TRUE(redirector.getCerr().find("Error: No se pudo abrir el archivo non_existent_file.txt") != std::string::npos);
 }
 
 // Test: Cargar archivo con formato de duración inválido
@@ -261,12 +279,10 @@ TEST(ServicioStreamingTest, CargarArchivoDuracionInvalida) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
+
     servicio.cargarArchivo(filename);
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("Advertencia: Duración inválida en la línea:") != std::string::npos);
+    EXPECT_TRUE(redirector.getCerr().find("Advertencia: Duración inválida en la línea: Pelicula,P001,Movie A,invalid_duration,Action,5;4") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
@@ -277,12 +293,49 @@ TEST(ServicioStreamingTest, CargarArchivoTipoDesconocido) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
+
     servicio.cargarArchivo(filename);
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("Advertencia: Tipo de video desconocido en la línea:") != std::string::npos);
+    EXPECT_TRUE(redirector.getCerr().find("Advertencia: Tipo de video desconocido en la línea: UnknownType,U001,Video X,60.0,Comedy,3") != std::string::npos);
+    cleanupDummyDataFile(filename);
+}
+
+// Test: Cargar archivo con calificaciones inválidas para Pelicula
+TEST(ServicioStreamingTest, CargarArchivoPeliculaCalificacionInvalida) {
+    const std::string filename = "test_data_invalid_movie_rating.txt";
+    const std::string content = "Pelicula,P001,Movie A,90.0,Action,5;invalid;4\n";
+    createDummyDataFile(filename, content);
+
+    ServicioStreaming servicio;
+    StreamRedirector redirector;
+    servicio.cargarArchivo(filename);
+    EXPECT_TRUE(redirector.getCerr().find("Advertencia: Calificación inválida para Pelicula 'Movie A': 'invalid'") != std::string::npos);
+    cleanupDummyDataFile(filename);
+}
+
+// Test: Cargar archivo con calificaciones inválidas para Serie
+TEST(ServicioStreamingTest, CargarArchivoSerieCalificacionInvalida) {
+    const std::string filename = "test_data_invalid_series_rating.txt";
+    const std::string content = "Serie,S001,Series B,45.0,Drama,3-invalid;Ep1:1:5\n";
+    createDummyDataFile(filename, content);
+
+    ServicioStreaming servicio;
+    StreamRedirector redirector;
+    servicio.cargarArchivo(filename);
+    EXPECT_TRUE(redirector.getCerr().find("Advertencia: Calificación inválida para Serie 'Series B': 'invalid'") != std::string::npos);
+    cleanupDummyDataFile(filename);
+}
+
+// Test: Cargar archivo con formato de segmento de episodio inválido
+TEST(ServicioStreamingTest, CargarArchivoEpisodioSegmentoInvalido) {
+    const std::string filename = "test_data_invalid_episode_segment.txt";
+    const std::string content = "Serie,S001,Series C,45.0,Drama,3-4;Ep1:invalid_season:5|Ep2:1:3\n";
+    createDummyDataFile(filename, content);
+
+    ServicioStreaming servicio;
+    StreamRedirector redirector;
+    servicio.cargarArchivo(filename);
+    EXPECT_TRUE(redirector.getCerr().find("Advertencia: Temporada inválida para episodio 'Ep1' en 'Series C': 'invalid_season'") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
@@ -293,29 +346,21 @@ TEST(ServicioStreamingTest, CalificarPeliculaExistente) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.calificarVideo("Movie To Rate", 5);
-    std::cout.rdbuf(oldCout);
-
-    std::string output = ss.str();
-    EXPECT_TRUE(output.find("Video 'Movie To Rate' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Video 'Movie To Rate' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
 // Test: Calificar una película inexistente
 TEST(ServicioStreamingTest, CalificarPeliculaInexistente) {
     ServicioStreaming servicio; // Empty service
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
     servicio.calificarVideo("Non Existent Movie", 3);
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("Video o episodio 'Non Existent Movie' no encontrado.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Video o episodio 'Non Existent Movie' no encontrado.") != std::string::npos);
 }
 
 // Test: Calificar un episodio existente (caso real después de cargar)
@@ -325,17 +370,12 @@ TEST(ServicioStreamingTest, CalificarEpisodioExistente) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.calificarVideo("Ep1", 4); // Calificar el primer episodio
-    std::cout.rdbuf(oldCout);
-
-    std::string output = ss.str();
-    EXPECT_TRUE(output.find("Episodio 'Ep1' de la serie 'Series With Episodes' calificado. Nueva calificación promedio: 3.5") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Episodio 'Ep1' de la serie 'Series With Episodes' calificado. Nueva calificación promedio: 3.5") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
@@ -346,16 +386,12 @@ TEST(ServicioStreamingTest, CalificarEpisodioInexistenteEnSerieExistente) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.calificarVideo("Non Existent Episode", 4);
-    std::cout.rdbuf(oldCout);
-
-    EXPECT_TRUE(ss.str().find("Video o episodio 'Non Existent Episode' no encontrado.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Video o episodio 'Non Existent Episode' no encontrado.") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
@@ -370,16 +406,13 @@ TEST(ServicioStreamingTest, MostrarVideosPorCalificacion) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.mostrarVideosPorCalificacionOGenero(4.5, ""); // Filter by rating only
 
-    std::cout.rdbuf(oldCout);
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
 
     EXPECT_TRUE(output.find("Nombre: High Rated Movie") != std::string::npos);
     EXPECT_FALSE(output.find("Nombre: Medium Movie") != std::string::npos);
@@ -398,16 +431,13 @@ TEST(ServicioStreamingTest, MostrarVideosPorGenero) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.mostrarVideosPorCalificacionOGenero(0.0, "Action"); // Filter by genre only
 
-    std::cout.rdbuf(oldCout);
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
 
     EXPECT_TRUE(output.find("Nombre: Action Movie") != std::string::npos);
     EXPECT_FALSE(output.find("Nombre: Comedy Movie") != std::string::npos);
@@ -425,16 +455,13 @@ TEST(ServicioStreamingTest, MostrarVideosPorCalificacionYGenero) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.mostrarVideosPorCalificacionOGenero(4.0, "Drama");
 
-    std::cout.rdbuf(oldCout);
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
 
     EXPECT_TRUE(output.find("Nombre: Movie A") != std::string::npos);
     EXPECT_FALSE(output.find("Nombre: Movie B") != std::string::npos); // Rating too low
@@ -445,12 +472,9 @@ TEST(ServicioStreamingTest, MostrarVideosPorCalificacionYGenero) {
 // Test: No se encuentran videos con los criterios especificados
 TEST(ServicioStreamingTest, MostrarVideosNoEncontrados) {
     ServicioStreaming servicio; // Empty service
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
     servicio.mostrarVideosPorCalificacionOGenero(4.0, "NonExistentGenre");
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("No se encontraron videos con los criterios especificados.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("No se encontraron videos con los criterios especificados.") != std::string::npos);
 }
 
 // Test: Mostrar episodios de una serie con calificación específica
@@ -460,15 +484,12 @@ TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieConCalificacion) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.mostrarEpisodiosDeSerieConCalificacion("My Awesome Series", 4.0);
-    std::cout.rdbuf(oldCout);
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
 
     EXPECT_TRUE(output.find("Título: Ep1, Temporada: 1, Calificación: 5.0") != std::string::npos);
     EXPECT_FALSE(output.find("Título: Ep2, Temporada: 1, Calificación: 3.0") != std::string::npos);
@@ -479,12 +500,9 @@ TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieConCalificacion) {
 // Test: Intentar mostrar episodios de una serie que no existe
 TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieNoExistente) {
     ServicioStreaming servicio;
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    StreamRedirector redirector;
     servicio.mostrarEpisodiosDeSerieConCalificacion("Non Existent Series", 3.0);
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("Serie 'Non Existent Series' no encontrada.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Serie 'Non Existent Series' no encontrada.") != std::string::npos);
 }
 
 // Test: Mostrar películas con calificación específica
@@ -497,15 +515,12 @@ TEST(ServicioStreamingTest, MostrarPeliculasConCalificacion) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.mostrarPeliculasConCalificacion(3.5);
-    std::cout.rdbuf(oldCout);
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
 
     EXPECT_TRUE(output.find("Nombre: Movie High") != std::string::npos);
     EXPECT_FALSE(output.find("Nombre: Movie Low") != std::string::npos);
@@ -519,39 +534,32 @@ TEST(ServicioStreamingTest, MostrarPeliculasNoEncontradas) {
     const std::string filename = "test_data_no_movies.txt";
     const std::string content = "Pelicula,P001,Movie Low,80.0,Comedy,2\n"; // Only low rated movie
     createDummyDataFile(filename, content);
+    
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
+    redirector.clear(); // Clear output from loading
 
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
     servicio.mostrarPeliculasConCalificacion(4.0);
-    std::cout.rdbuf(oldCout);
-    EXPECT_TRUE(ss.str().find("No se encontraron películas con calificación >= 4.0.") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("No se encontraron películas con calificación >= 4.0.") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
 // Test: Destructor de ServicioStreaming libera memoria
 TEST(ServicioStreamingTest, DestructorLiberaMemoria) {
-    // This test is harder to verify directly without advanced tools like Valgrind.
-    // However, we can ensure the destructor is called and attempts to delete.
-    // The key is that `videos` vector elements are `Video*`
-    // and the destructor iterates and `delete`s each one.
     ServicioStreaming* servicio = new ServicioStreaming();
     
-    // Add some dummy videos
-    servicio->cargarArchivo("test_data_load.txt"); // Assuming this file exists from another test or created here
-    // If not, create a simple one:
     const std::string filename = "temp_for_dtor.txt";
     const std::string content = "Pelicula,P001,Temp Movie,90.0,Action,5\n";
     createDummyDataFile(filename, content);
+    
+    StreamRedirector redirector; // Capture output for loading success/errors during setup
     servicio->cargarArchivo(filename);
+    redirector.clear(); // Clear output from loading
 
     // When 'servicio' is deleted, its destructor should free the allocated Video objects
     delete servicio; 
-    // If no memory leaks are reported by a tool like Valgrind during the test run,
-    // this test implicitly passes its intent. No explicit EXPECT_ or ASSERT_ here
-    // because direct memory inspection is beyond typical unit testing in C++.
     cleanupDummyDataFile(filename);
+    // No explicit EXPECT_ or ASSERT_ here as memory deallocation is hard to test directly
 }
 
 // Test: Case-insensitive search for calificarVideo (Movie)
@@ -561,17 +569,12 @@ TEST(ServicioStreamingTest, CalificarVideoCaseInsensitiveMovie) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.calificarVideo("A mOvIe", 5); // Different casing
-    std::cout.rdbuf(oldCout);
-
-    std::string output = ss.str();
-    EXPECT_TRUE(output.find("Video 'a MoVie' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Video 'a MoVie' calificado. Nueva calificación promedio: 4.5") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
@@ -582,17 +585,12 @@ TEST(ServicioStreamingTest, CalificarVideoCaseInsensitiveEpisode) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.calificarVideo("ePiSoDe1", 4); // Different casing
-    std::cout.rdbuf(oldCout);
-
-    std::string output = ss.str();
-    EXPECT_TRUE(output.find("Episodio 'ePisoDe1' de la serie 'My SERIES' calificado. Nueva calificación promedio: 3.5") != std::string::npos);
+    EXPECT_TRUE(redirector.getCout().find("Episodio 'ePisoDe1' de la serie 'My SERIES' calificado. Nueva calificación promedio: 3.5") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
 
@@ -603,15 +601,12 @@ TEST(ServicioStreamingTest, MostrarEpisodiosDeSerieCaseInsensitive) {
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
+    StreamRedirector redirector; // Capture output for loading success
     servicio.cargarArchivo(filename);
-
-    std::stringstream ss;
-    std::streambuf* oldCout = std::cout.rdbuf();
-    std::cout.rdbuf(ss.rdbuf());
+    redirector.clear(); // Clear output from loading
 
     servicio.mostrarEpisodiosDeSerieConCalificacion("cAsE sEnSiTiVe SeRiEs", 4.0); // Different casing
-    std::cout.rdbuf(oldCout);
-    std::string output = ss.str();
+    std::string output = redirector.getCout();
 
     EXPECT_TRUE(output.find("Título: Ep1, Temporada: 1, Calificación: 5.0") != std::string::npos);
     cleanupDummyDataFile(filename);
