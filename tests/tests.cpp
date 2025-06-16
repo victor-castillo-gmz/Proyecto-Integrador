@@ -1,3 +1,4 @@
+
 #include "gtest/gtest.h"
 #include "pelicula.h"
 #include "serie.h"
@@ -8,6 +9,8 @@
 #include <string>
 #include <vector>
 #include <stdexcept> // For std::invalid_argument etc.
+#include <fstream>   // NEW: For std::ofstream
+#include <cstdio>    // NEW: For std::remove
 
 // Helper to redirect cout and cerr for testing output
 class OutputRedirector {
@@ -55,8 +58,6 @@ TEST(VideoTest, CalificacionInvalida) {
     p.calificar(0); // Invalid
     p.calificar(6); // Invalid
     EXPECT_EQ(p.getCalificacionPromedio(), 0.0); // No valid ratings should lead to 0.0
-    // To check if 'calificaciones' is empty, we'd need a getter, which we intentionally didn't add for encapsulation.
-    // The test is good as is if getCalificacionPromedio() returns 0.0 for no valid ratings.
 }
 
 TEST(VideoTest, CalificacionUnica) {
@@ -127,10 +128,6 @@ TEST(SerieTest, AgregarYCalificarEpisodios) {
     EXPECT_NEAR(episodios[0].getCalificacionPromedio(), 4.5, 0.001);
     EXPECT_EQ(episodios[1].getTitulo(), "Episodio 2");
     EXPECT_NEAR(episodios[1].getCalificacionPromedio(), 3.0, 0.001);
-
-    // We removed s.CalificarEpisodio since it's handled by ServicioStreaming::calificarVideo
-    // To test changing episode rating, you'd need to get the mutable episode from the serie
-    // This part of the test might be redundant with ServicioStreamingTest.CalificarEpisodioExistente
 }
 
 TEST(SerieTest, MostrarDatos) {
@@ -211,7 +208,6 @@ TEST(SerieTest, MostrarEpisodiosConCalificacion) {
 TEST(ServicioStreamingTest, CargarArchivo) {
     OutputRedirector redirector;
     ServicioStreaming servicio;
-    servicio.cargarArchivo("dummy_data.txt"); // Create a dummy_data.txt for this test
 
     // Create a dummy_data.txt for this test
     std::ofstream dummy_file("dummy_data.txt");
@@ -237,7 +233,7 @@ TEST(ServicioStreamingTest, CargarArchivo) {
     // Check for "Movie A" details
     EXPECT_TRUE(output_cout.find("Nombre: Movie A") != std::string::npos);
     EXPECT_TRUE(output_cout.find("Género: Action") != std::string::npos);
-    EXPECT_TRUE(output_cout.find("Calificación promedio: 4.5") != std::string::npos); // This was the failing line!
+    EXPECT_TRUE(output_cout.find("Calificación promedio: 4.5") != std::string::npos);
 
     // Check for "Series B" details
     EXPECT_TRUE(output_cout.find("Nombre: Series B") != std::string::npos);
@@ -322,8 +318,6 @@ TEST(ServicioStreamingTest, CargarArchivoEpisodioSegmentoInvalido) {
 
     servicio.cargarArchivo("dummy_data_invalid_episode_segment.txt");
     std::string error_output = redirector.GetCerr();
-    // The previous error message for this test needed to be exactly matched.
-    // The `parseEpisodios` now correctly includes the series name in the error message.
     EXPECT_TRUE(error_output.find("Advertencia: Temporada inválida para episodio 'Ep1' en 'Series C': 'invalid_season'") != std::string::npos);
     std::remove("dummy_data_invalid_episode_segment.txt");
 }
@@ -517,23 +511,14 @@ TEST(ServicioStreamingTest, MostrarPeliculasNoEncontradas) {
 }
 
 TEST(ServicioStreamingTest, DestructorLiberaMemoria) {
-    // This test is harder to implement directly with unique_ptr
-    // because unique_ptr handles deallocation automatically.
-    // The lack of memory leaks would be verified by tools like Valgrind
-    // rather than a unit test directly in C++.
-    // For now, we trust unique_ptr's behavior.
     ServicioStreaming* servicio = new ServicioStreaming();
-    // Add some videos to ensure unique_ptrs are holding objects
     std::ofstream dummy_file("temp_destructor_test.txt");
     dummy_file << "Pelicula,P001,Movie A,90.0,Action,5\n";
     dummy_file.close();
     servicio->cargarArchivo("temp_destructor_test.txt");
-    // If the destructor had memory leaks, Valgrind would catch it.
-    // Deleting the pointer here will invoke the destructor, which in turn
-    // will deallocate the unique_ptrs held by the vector.
     delete servicio;
     std::remove("temp_destructor_test.txt");
-    SUCCEED(); // Indicate test passed as no crashes/errors
+    SUCCEED();
 }
 
 TEST(ServicioStreamingTest, CalificarVideoCaseInsensitiveMovie) {
