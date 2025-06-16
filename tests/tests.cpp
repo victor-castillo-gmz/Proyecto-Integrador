@@ -199,7 +199,6 @@ TEST(SerieTest, MostrarEpisodiosVacios) {
 
     // Also test via mostrarDatos()
     s.mostrarDatos(); // This will call s.mostrarEpisodios() internally, which prints "No hay episodios en esta serie."
-    // MODIFICACION APLICADA: Cambiado a esperar el mensaje exacto de mostrarEpisodios()
     EXPECT_TRUE(redirector.getCout().find("No hay episodios en esta serie.") != std::string::npos);
 }
 
@@ -215,6 +214,7 @@ TEST(SerieTest, MostrarEpisodiosConCalificacion) {
 
     StreamRedirector redirector;
 
+    // First part: Test finding episodes that match the criteria (e.g., >= 4.0)
     s.mostrarEpisodiosConCalificacion(4.0);
 
     std::string output = redirector.getCout();
@@ -224,9 +224,11 @@ TEST(SerieTest, MostrarEpisodiosConCalificacion) {
 
     redirector.clear(); // Clear stream for next check
 
-    // Test with no episodes meeting the criteria
-    s.mostrarEpisodiosConCalificacion(5.0);
-    // MODIFICACION APLICADA: Asegurarse de que el string en serie.cpp coincide exactamente
+    // Second part: Test with no episodes meeting the criteria
+    // MODIFICACIÓN CRÍTICA AQUÍ: Cambiado el valor para asegurar que no se encuentren episodios.
+    s.mostrarEpisodiosConCalificacion(6.0); // No episode will have a 6.0 rating
+
+    // Ahora esperamos el mensaje de "no encontrados"
     EXPECT_TRUE(redirector.getCout().find("No se encontraron episodios con esa calificación.") != std::string::npos);
 }
 
@@ -330,15 +332,12 @@ TEST(ServicioStreamingTest, CargarArchivoSerieCalificacionInvalida) {
 // Test: Cargar archivo con formato de segmento de episodio inválido
 TEST(ServicioStreamingTest, CargarArchivoEpisodioSegmentoInvalido) {
     const std::string filename = "test_data_invalid_episode_segment.txt";
-    // MODIFICACION APLICADA: Cambiado el contenido para que 'invalid_season' sea CLARAMENTE la temporada de un episodio.
     const std::string content = "Serie,S001,Series C,45.0,Drama,3;Ep1:invalid_season:5|Ep2:1:3\n";
     createDummyDataFile(filename, content);
 
     ServicioStreaming servicio;
     StreamRedirector redirector;
     servicio.cargarArchivo(filename);
-    // El mensaje de error debe coincidir con lo que tu parser de episodio emite cuando la temporada es inválida.
-    // Confirmamos que el mensaje esperado es este, si tu código lo genera así.
     EXPECT_TRUE(redirector.getCerr().find("Advertencia: Temporada inválida para episodio 'Ep1' en 'Series C': 'invalid_season'") != std::string::npos);
     cleanupDummyDataFile(filename);
 }
