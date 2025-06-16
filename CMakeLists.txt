@@ -33,18 +33,11 @@ target_link_libraries(StreamingServiceApp PRIVATE StreamingServiceLib)
 # ===================================================================
 
 # --- Configuración Global de Cobertura ---
-# Si la cobertura está habilitada, se aplican las banderas a la LIBRERÍA
-# para que su código pueda ser medido.
 if(ENABLE_COVERAGE)
     message(STATUS "Code coverage is enabled. Applying coverage flags.")
-    # --coverage es un atajo para -fprofile-arcs -ftest-coverage (compilar) y -lgcov (linkear)
     target_compile_options(StreamingServiceLib PRIVATE --coverage)
     target_link_options(StreamingServiceLib PRIVATE --coverage)
-
-    # *** INICIO DE LA CORRECCIÓN FINAL ***
-    # El ejecutable principal TAMBIÉN necesita enlazarse con gcov.
     target_link_options(StreamingServiceApp PRIVATE --coverage)
-    # *** FIN DE LA CORRECCIÓN FINAL ***
 endif()
 
 
@@ -62,15 +55,35 @@ if(ENABLE_TESTING)
     enable_testing() 
 
     add_executable(ServicioStreamingTest tests/tests.cpp)
-    
-    # Se enlaza el ejecutable de pruebas con gtest, tu librería y pthread.
     target_link_libraries(ServicioStreamingTest PRIVATE gtest_main StreamingServiceLib pthread)
 
-    # El ejecutable de pruebas también necesita las opciones de cobertura para funcionar.
     if(ENABLE_COVERAGE)
         target_link_options(ServicioStreamingTest PRIVATE --coverage)
     endif()
 
-    # Se añade a CTest para que pueda ser ejecutado.
     add_test(NAME UnitTests COMMAND ServicioStreamingTest)
+
+    # *** INICIO DE LA CORRECCIÓN ***
+    # --- Generación de Reportes de Cobertura para SonarQube ---
+    # Se vuelve a añadir la regla que tu sistema de CI necesita.
+    if(ENABLE_COVERAGE)
+        find_program(GCOVR_EXECUTABLE gcovr)
+        if(GCOVR_EXECUTABLE)
+            add_custom_target(sonarqube_coverage_xml
+                # Primero, se corren las pruebas para generar los archivos .gcda
+                COMMAND ${CMAKE_CTEST_COMMAND}
+                # Luego, gcovr genera el reporte XML
+                COMMAND ${GCOVR_EXECUTABLE} 
+                        --root ${CMAKE_SOURCE_DIR} 
+                        --exclude 'tests/.*' 
+                        --sonarqube coverage.xml
+                COMMENT "Generating SonarQube coverage XML report (coverage.xml)..."
+                VERBATIM
+            )
+        else()
+            message(WARNING "gcovr executable not found. The 'sonarqube_coverage_xml' target will not be available.")
+        endif()
+    endif()
+    # *** FIN DE LA CORRECCIÓN ***
+
 endif()
