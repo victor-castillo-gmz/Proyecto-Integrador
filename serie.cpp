@@ -58,6 +58,7 @@ void Serie::mostrarEpisodios() const {
 }
 
 // Método para mostrar episodios con una calificación mínima
+// Inside serie.cpp, within Serie::mostrarEpisodiosConCalificacion
 void Serie::mostrarEpisodiosConCalificacion(double calificacionMinima) const {
     bool found_matching_episode = false; // Flag to track if any episode meets criteria
     std::cout << "Episodios de '" << getNombre() << "' con calificación >= "
@@ -68,8 +69,13 @@ void Serie::mostrarEpisodiosConCalificacion(double calificacionMinima) const {
             std::cout << "  - Título: " << ep.getTitulo()
                       << ", Temporada: " << ep.getTemporada()
                       << ", Calificación: " << std::fixed << std::setprecision(1) << ep.getCalificacionPromedio() << std::endl;
-            found_matching_episode = true;
+            found_matching_episode = true; // Set to true if at least one episode is found
         }
+    }
+
+    if (!found_matching_episode) {
+        // PASTE THE STRING YOU COPIED FROM tests.cpp HERE:
+        std::cout << "No se encontraron episodios con esa calificación." << std::endl;
     }
 
     // MODIFICACION APLICADA: Asegurarse que esta cadena coincida EXACTAMENTE con el test.
