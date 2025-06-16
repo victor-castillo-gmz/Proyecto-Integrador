@@ -79,9 +79,10 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         with:
-          args: >
-            -Dsonar.cfamily.compile-commands=build/compile_commands.json
-            -Dsonar.cfamily.reportPaths=build/coverage.xml # ¡Este comentario SÍ está permitido aquí!
+          # Changed from `args: >` to `args: |` and explicitly quoting each argument
+          args: |
+            "-Dsonar.cfamily.compile-commands=build/compile_commands.json"
+            "-Dsonar.cfamily.reportPaths=build/coverage.xml"
 
       - name: Check SonarQube Quality Gate
         uses: sonarsource/sonarqube-quality-gate-action@master
