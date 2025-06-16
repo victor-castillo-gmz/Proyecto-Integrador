@@ -1,28 +1,35 @@
+/**
+ * @file video.cpp
+ * @brief Implementación de la clase base Video.
+ * @author Tu Nombre
+ * @date 2025-06-15
+ */
+
 #include "video.h"
-#include <numeric> // For std::accumulate
+#include <numeric>
 #include <iostream>
-#include <iomanip> // For std::fixed, std::setprecision
+#include <iomanip>
 
 Video::Video(const std::string& id, const std::string& nombre, double duracion, const std::string& genero)
     : id(id), nombre(nombre), duracion(duracion), genero(genero) {}
 
-std::string Video::getId() const {
+std::string Video::GetId() const {
     return id;
 }
 
-std::string Video::getNombre() const {
+std::string Video::GetNombre() const {
     return nombre;
 }
 
-double Video::getDuracion() const {
+double Video::GetDuracion() const {
     return duracion;
 }
 
-std::string Video::getGenero() const {
+std::string Video::GetGenero() const {
     return genero;
 }
 
-double Video::getCalificacionPromedio() const {
+double Video::GetCalificacionPromedio() const {
     if (calificaciones.empty()) {
         return 0.0;
     }
@@ -30,25 +37,16 @@ double Video::getCalificacionPromedio() const {
     return sum / calificaciones.size();
 }
 
-void Video::calificar(int calificacion) {
+void Video::Calificar(int calificacion) {
     if (calificacion >= 1 && calificacion <= 5) {
         calificaciones.push_back(calificacion);
-    } else {
-        // Optionally, print a warning or throw an exception for invalid ratings
-        // std::cerr << "Advertencia: Calificación inválida: " << calificacion << std::endl;
     }
 }
 
-void Video::imprimirInfoBase() const {
+void Video::ImprimirInfoBase() const {
     std::cout << "ID: " << id << std::endl;
     std::cout << "Nombre: " << nombre << std::endl;
-    std::cout << "Duración: " << duracion << " mins" << std::endl;
-    std::cout << "Género: " << genero << std::endl;
-    // Ensure consistent floating-point output for tests
-    std::cout << "Calificación promedio: " << std::fixed << std::setprecision(1) << getCalificacionPromedio() << std::endl;
-}
-
-void Video::mostrarDatos() const {
-    imprimirInfoBase();
-    // Specific implementation for base Video, if needed, otherwise overridden by derived classes
+    std::cout << "Duracion: " << duracion << " mins" << std::endl;
+    std::cout << "Genero: " << genero << std::endl;
+    std::cout << "Calificacion promedio: " << std::fixed << std::setprecision(1) << GetCalificacionPromedio() << std::endl;
 }

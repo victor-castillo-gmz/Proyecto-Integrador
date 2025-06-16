@@ -1,20 +1,27 @@
+/**
+ * @file episodio.cpp
+ * @brief Implementación de la clase Episodio.
+ * @author Tu Nombre
+ * @date 2025-06-15
+ */
+
 #include "episodio.h"
-#include <numeric> // For std::accumulate
+#include <numeric>
 #include <iostream>
-#include <iomanip> // For std::fixed, std::setprecision
+#include <iomanip>
 
 Episodio::Episodio(const std::string& titulo, int temporada)
     : titulo(titulo), temporada(temporada) {}
 
-std::string Episodio::getTitulo() const {
+std::string Episodio::GetTitulo() const {
     return titulo;
 }
 
-int Episodio::getTemporada() const {
+int Episodio::GetTemporada() const {
     return temporada;
 }
 
-double Episodio::getCalificacionPromedio() const {
+double Episodio::GetCalificacionPromedio() const {
     if (calificaciones.empty()) {
         return 0.0;
     }
@@ -22,17 +29,14 @@ double Episodio::getCalificacionPromedio() const {
     return sum / calificaciones.size();
 }
 
-void Episodio::calificar(int calificacion) {
+void Episodio::Calificar(int calificacion) {
     if (calificacion >= 1 && calificacion <= 5) {
         calificaciones.push_back(calificacion);
-    } else {
-        // No error output here, as ServicioStreaming::parseEpisodios handles the warnings
     }
 }
 
-void Episodio::mostrarDatos() const {
-    std::cout << "    - Título Episodio: " << titulo << std::endl;
+void Episodio::MostrarDatos() const {
+    std::cout << "    - Titulo Episodio: " << titulo << std::endl;
     std::cout << "      Temporada: " << temporada << std::endl;
-    // Ensure consistent floating-point output for tests
-    std::cout << "      Calificación promedio: " << std::fixed << std::setprecision(1) << getCalificacionPromedio() << std::endl;
+    std::cout << "      Calificacion promedio: " << std::fixed << std::setprecision(1) << GetCalificacionPromedio() << std::endl;
 }
