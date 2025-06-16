@@ -1,8 +1,0 @@
-Pelicula,P001,The Matrix,136,Ciencia Ficcion,5;4;5;4;5
-Pelicula,P002,Inception,148,Ciencia Ficcion,4;5;4;3;5
-Pelicula,P003,The Godfather,175,Drama,5;5;5;5;4
-Pelicula,P004,Bad Movie,90,Terror,1;2;2;1;1
-Serie,S001,Breaking Bad,47,Drama,5-5-4;Pilot:1:5-5-4|Gray Matter:1:4-4-5|Cat's in the Bag:1:5-4-4
-Serie,S002,Game of Thrones,57,Fantasy,4-5-5;Winter Is Coming:1:5-5-4|The Kingsroad:1:4-4-3|Lord Snow:1:3-3-4
-Serie,S003,The Office,22,Comedia,3-4-4;Pilot:1:3-3-2|Diversity Day:1:4-4-5|Health Care:1:2-3-3
-Pelicula,P005,Avatar,162,Accion,5;5;4;5;4
